@@ -2,7 +2,11 @@
 name = "dijkstra-plot"
 version = "0.1.0"
 edition = "2021"
+authors = "Stefan Lindoerfer"
+description = "Executes Dijstra-Algorithm on a GraphML-based graph and prints result in gnuplot."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Simply list needed crates with version here and run $ cargo build in main directory to build (and download) crates/project
 [dependencies]
+minidom = "0.15.1"
