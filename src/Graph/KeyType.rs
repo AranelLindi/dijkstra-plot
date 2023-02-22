@@ -1,8 +1,10 @@
-pub enum KeyType {
-    boolean,
-    int,
-    long,
-    float,
-    double,
-    String,
+pub mod KeyEnum {
+    pub enum KeyType {
+        boolean,
+        int,
+        long,
+        float,
+        double,
+        String,
+    }
 }

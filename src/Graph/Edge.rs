@@ -1,22 +1,23 @@
-mod enum_module {
-    pub use super::graphtype;
-}
+use crate::Graph::graphtype::graphtype;
+use crate::Graph::IGraphObject::IGraphObject;
+use crate::Graph::Key::Key;
+use crate::Graph::Node::Node;
 
-pub struct Edge {
-    id: String,
+pub struct Edge<'a> {
+    id: str,
     pub weight: u32,
-    pub etype: enum_module::graphtype,
-    pub source: &Node,
-    pub dest: &Node,
-    keys: Vec<Key>
+    pub etype: graphtype,
+    pub source: &'a Node,
+    pub dest: &'a Node,
+    keys: Vec<Key>,
 }
 
-impl GraphObject for Edge {
-    fn getID(&self) -> String {
-        self.id
+impl IGraphObject for Edge {
+    fn getID(&self) -> &str {
+        &self.id
     }
 
-    fn getKeys(&self) -> Vec<Key> {
-        self.keys
+    fn getKeys(&self) -> &Vec<Key> {
+        &self.keys
     }
 }

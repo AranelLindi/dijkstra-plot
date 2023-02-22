@@ -1,11 +1,9 @@
 mod Node;
 mod Edge;
+mod IGraphObject;
 mod Key;
-mod GraphObject;
+mod KeyType;
 
-//pub use Node::Node;
-//pub use Edge::Edge;
-//pub use Eey::Key;
 
 struct Graph {
     id: str,
@@ -15,17 +13,17 @@ struct Graph {
 }
 
 impl GraphObject for Graph {
-    fn new(&self, id: &str, nodes: &Vec<Node>, edge: &Vec<Edge>, keys: &Vec<Key>) {
-        self.id = id;
+    fn new(&mut self, id: Box<str>, nodes: Vec<Node>, edges: Vec<Edge>, keys: Vec<Key>) {
+        self.id = *id; // probably dereference to use the object in the box
         self.nodes = nodes;
         self.edges = edges;
         self.keys = keys;
     }
 
     fn getAdjacencyMatrix(&self) -> [[u8; N]; N] { // TODO could make problems here with unknown array size...
-        const N : u32 = self.nodes.len();
+        const N : u32 = self.nodes.len() as u32;
 
-        // creates 2D array respectively N x N matrix withi N := len(self.nodes)
+        // creates 2D array respectively N x N matrix within N := len(self.nodes)
         let mut matrix = [[0u8; N]; N];
 
         // enumerate returns tuple with (position, current object)
@@ -33,14 +31,14 @@ impl GraphObject for Graph {
             matrix[e.source.no][e.dest.no] = 1u8;
         }
 
-        let return_matrx = matrix;
+        //let return_matrx = matrix;
 
-        return_matrix
+        return matrix;
     }
 
-    fn addKey(obj: &mut GraphObject, key: Key) {
+    fn addKey(obj: &mut GraphObject, key: &Key) {
         // find out if key already exists
-        if let Some(index) = obj.keys.iter().position(| &x | x.getID() == id) {
+        if let Some(index) = obj.keys.iter().position(| &x | x.getID() == key.id) {
             // element exists so update value
             obj.keys[index].value = key.value;
         }
@@ -50,15 +48,15 @@ impl GraphObject for Graph {
         }
     }
 
-    fn deleteKey(obj: GraphObject, id: str) {
-        if let Some(index) = obj.keys.iter().position(| &x | x.id == id) {
+    fn deleteKey(obj: &GraphObject, id: &str) {
+        if let Some(index) = *obj.keys.iter().position(| &x | x.id == *id) { // TODO: Is *id correct? Compiler doesn't say anything.. even with just "id" - CHECK!
             // remove object
             obj.keys.remove(index);
         } // (else: element not found in vector so nothing needs to be done)
     }
 
-    fn getPosKeyById(obj: GraphObject, id: String) {
-        if let Some(index) = obj.keys.iter().position(| &x | x.id == id) {
+    fn getPosKeyById(obj: &GraphObject, id: &str) -> i32 {
+        if let Some(index) = *obj.keys.iter().position(| &x | x.id == *id) {
             index
         }
         else {
@@ -66,8 +64,8 @@ impl GraphObject for Graph {
         }
     }
 
-    fn getPosByAttrname(obj: GraphObject, attrname: str) {
-        if let Some(index) = obj.keys.iter().position(| &x | x.attrname == attrname) {
+    fn getPosByAttrname(obj: &GraphObject, attrname: &str) -> i32 {
+        if let Some(index) = *obj.keys.iter().position(| &x | x.attrname == attrname) {
             index
         }
         else {

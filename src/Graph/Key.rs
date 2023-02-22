@@ -1,10 +1,8 @@
-mod enum_KeyType {
-    pub use enum_KeyType::KeyType;
-}
+use crate::Graph::KeyType::KeyEnum::KeyType;
 
-struct Key {
-    pub id: String,
+pub struct Key {
+    pub id: str,
     pub attrname: String,
-    pub attrtype: enum_KeyType::KeyType,
-    pub value: String,
+    pub attrtype: KeyType,
+    pub value: str
 }
