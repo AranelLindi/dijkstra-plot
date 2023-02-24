@@ -1,4 +1,4 @@
-pub enum graphtype {
-    directed, 
-    undirected
+pub enum Graphtype {
+    Directed,
+    Undirected
 }

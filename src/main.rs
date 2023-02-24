@@ -1,5 +1,4 @@
-pub mod Graph;
-mod Dijkstra;
+mod Graph;
 
 use std::io::Write;
 
@@ -23,6 +22,16 @@ const INTRO: &'static str = "\
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
 
 fn main() {
+    let mut my_graph : crate::Graph::Graph;
+
+    let matrix = my_graph.get_adjacency_matrix();
+
+    for matrix in matrix {
+        println!("{}", matrix);
+    }
+
+
+/* (Everything works in this comment)
     println!("{}", INTRO);
     print!("   GraphML-filepath: ");
 
@@ -34,7 +43,7 @@ fn main() {
     std::io::stdin()
         .read_line(&mut filepath)
         .expect("Error while reading...");
-
+*/
     
 
 
