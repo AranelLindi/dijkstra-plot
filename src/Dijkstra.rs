@@ -1,8 +1,9 @@
+// Own objects.
 use crate::Graph::Graph;
 use crate::Graph::node::Node;
 use crate::Graph::edge::Edge;
 
-// std library
+// Standard library.
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
@@ -38,7 +39,7 @@ pub struct Dijkstra<'a> {
 
 // Implementation.
 impl<'a> Dijkstra<'a> {
-    // Prepares graph to be ready for execution of Dijkstra algorithm by creating a min-heap with node_len-entries.
+    // Prepares graph to be ready for execution of Dijkstra algorithm by creating a min-heap with node_len-entries. Complexity: O(n)
     fn init(graph: &'a Graph<'a>, start: &'a Node) -> BinaryHeap<DijkstraHeapEle<'a>> {
         let mut costs: BinaryHeap<DijkstraHeapEle> = BinaryHeap::new();
 
@@ -76,13 +77,13 @@ impl<'a> Dijkstra<'a> {
 
         // Copies edges of given graph and sorts them first by id of source node and second by weight.
         let mut edges = graph.edges.clone();
-        edges.sort_by(|a, b| {
-            if a.source().no() == b.source().no() {
-                a.weight().cmp(&b.weight())
-            } else {
-                a.source().no().cmp(&b.source().no())
-            }
-        });
+        // edges.sort_by(|a, b| { // TODO: Doesn't seem to be necessary since it doesn't improve execution time but needs O(n**3) to sort it
+        //     if a.source().no() == b.source().no() {
+        //         a.weight().cmp(&b.weight())
+        //     } else {
+        //         a.source().no().cmp(&b.source().no())
+        //     }
+        // });
 
         // Closure iterates through given BinaryHeap until specific node was found, updates its values and pushes each entry back into queue.
         let update_node =
@@ -132,18 +133,18 @@ impl<'a> Dijkstra<'a> {
 
             Note: Works with directed and undirected edges!
         */
-        while !Q.is_empty() /* O(1) */ {
+        while !Q.is_empty() /* O(V) */ {
             if let Some(mut u) = Q.pop() /* WC: O(log(V)) */ {
-                N_.insert(u.owner); // WC: O(V)
+                N_.insert(u.owner); // O(1), WC: O(V)
 
-                result.push(u.clone()); // O(1)
+                result.push(u.clone()); // O(1), WC: O(V)
 
                 for edge in edges.iter() /* WC: O(E) */ {
                     // Might be that there's a more favorable path to dest node when taking edge backwards. If its not forbidden (because directed edge) then check both directions!
                     let origin_node_ref: Option<&Node> = {
                         if edge.source() == u.owner /* If edge is not considered inverted, the consideration of the direction condition is superfluous */ {
                             Some(edge.dest())
-                        } else if *edge.etype() == GraphType::Undirected && edge.dest() == u.owner /* If edge can be inverted check if its a valid way */ {
+                        } else if *edge.etype() == GraphType::Undirected && edge.dest() == u.owner /* If edge can be inverted, check if its a valid way */ {
                             Some(edge.source())
                         } else {
                             None
@@ -151,13 +152,13 @@ impl<'a> Dijkstra<'a> {
                     };
 
                     if let Some(v) = origin_node_ref {
-                        if !N_.contains(v) /* WC: O(V) */ {
+                        if !N_.contains(v) /* O(1), WC: O(V) */ {
                             let dist: u32 = edge.weight() + u.c;
 
                             if let Some(c) = get_cost(v, Q.borrow_mut()) /* WC: O(V) */ {
                                 // Important that '<' and not '<=' is used! Otherwise an endless loop can occur!
                                 if dist < c {
-                                    Q = update_node(v, Option::from(u.owner), dist, Q.borrow_mut()); // WC: O(V*log(V))
+                                    Q = update_node(v, Option::from(u.owner), dist, Q.borrow_mut()); // WC: O(V*log(V)) // TODO: Must be designed even more favorable!
                                 }
                             }
                         }
@@ -166,7 +167,11 @@ impl<'a> Dijkstra<'a> {
             }
         }
 
-        /* Cost complexity of this implementation of dijkstra algorithm: O(V*(E+V*log(V)) */
+        /* Cost complexity of this implementation of dijkstra algorithm: O(V*log(V)*(1+E)) (room for improvement) */
+        // TODO:
+        // - Cheaper implementation of update_node (probably best method is to use another common data structure which allows updating in O(n)-time)
+        // - Maybe implement fibonacci heap data structure by myself (will be ver difficult, at least...) to extract min entry in O(1)-time
+
         return result;
     }
 }

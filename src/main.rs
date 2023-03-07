@@ -1,13 +1,15 @@
 mod Graph;
 mod Dijkstra;
 mod Constants;
+mod GraphOptimization;
 
+// Own objects.
 use Graph::node::Node;
 use Graph::edge::Edge;
 
-
+// Standard library.
 use std::io::Write;
-use crate::Graph::graph_type::graph_enum::GraphType::Undirected;
+use crate::Graph::graph_type::graph_enum::GraphType::{Undirected, Directed};
 
 fn main() {
     let mut nodes: Vec<Node> = Vec::new();
