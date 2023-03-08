@@ -5,7 +5,13 @@ use std::process::Output;
 use crate::Graph::{Graph, Node};
 
 // Standard library
-use std::ops::Sub;
+use std::ops::{Mul, Sub};
+
+// Trait for multiply tuples of size 2 with scalar constant.
+trait TupleScalarMul<RHS> {
+    type Output;
+    fn multiply_scalar(self, others: RHS) -> Self::Output;
+}
 
 // Trait for subtracting tuples of size 2.
 trait TupleSub<RHS> {
@@ -17,7 +23,7 @@ trait TupleSub<RHS> {
 pub struct NodePos {
     pub no: u32,
     pub pos: (f32, f32),
-    pub vel: (f32, f32)
+    pub vel: (f32, f32),
 }
 
 impl NodePos {
@@ -31,14 +37,16 @@ impl NodePos {
 }
 
 // Implementation of TupleSub-trait to 'tuple of size 2'-construct.
-impl<T, RHS> TupleSub<RHS> for (T, T) // where block defines additional constraints on the types that can implement this trait TupleSub!
-    where T: Sub<Output = T> /* T must implement the Sub-trait (means that minus operator could used on it) and the output type must also be T (so from same type) */,
-        RHS: Into<(T, T)> /* RHS must implement the Into-trait which means that RHS can be converted into a tuple of size 2 containing values of type T */,
+impl<T, RHS> TupleSub<RHS> for (T, T)
+// where block defines additional constraints on the types that can implement this trait TupleSub!
+where
+    T: Sub<Output = T>, /* T must implement the Sub-trait (means that minus operator could used on it) and the output type must also be T (so from same type) */
+    RHS: Into<(T, T)>, /* RHS must implement the Into-trait which means that RHS can be converted into a tuple of size 2 containing values of type T */
 {
     type Output = (T, T);
 
     fn subtract_sub(self, others: RHS) -> Self::Output {
-        let other = other.into();
+        let other = others.into();
         (self.0 - other.0, self.1 - other.1)
     }
 }
@@ -50,6 +58,20 @@ impl PartialEq<Self> for NodePos {
     }
 }
 
+// Implementation of TupleScalarMult trait to allow scalar multiplication with tuple of size 2.
+impl<T, RHS> TupleScalarMul<RHS> for (T, T)
+where
+    T: Mul<Output = T> + Copy, /* Copy trait is necessary to ensure that T is a primitive type and can used multiple times without a move is necessary */
+    RHS: Into<T>,
+{
+    type Output = (T, T);
+
+    fn multiply_scalar(self, others: RHS) -> Self::Output {
+        let other = others.into();
+        (self.0 * other, self.1 * other)
+    }
+}
+
 // Implementation of PartialOrd-trait (necessary for sorting)
 impl PartialOrd for NodePos {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -58,7 +80,7 @@ impl PartialOrd for NodePos {
 }
 
 struct GraphOptimization<'a> {
-    marker: std::marker::PhantomData<&'a()>
+    marker: std::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> GraphOptimization<'a> {
@@ -74,8 +96,8 @@ impl<'a> GraphOptimization<'a> {
         // Closure is used to return initial coordinates for each node by a specific logic so the algorithm doesn't get stuck.
         let init_logic = |i: usize| -> (f32, f32) {
             match i % 4 {
-                0 => (i as f32, 0.0), /* 1st quadrant */
-                1 => (0.0, i as f32), /* 2nd quadrant */
+                0 => (i as f32, 0.0),    /* 1st quadrant */
+                1 => (0.0, i as f32),    /* 2nd quadrant */
                 2 => (-(i as f32), 0.0), /* 3rd quadrant */
                 _ => (0.0, -(i as f32)), // case: 3 (_ must be used!) /* 4th quadrant */
             }
@@ -86,8 +108,7 @@ impl<'a> GraphOptimization<'a> {
             if node != start {
                 // Start node shall be in center of graphical representation.
                 positions.push(NodePos::new(start.no(), 0.0, 0.0, 0.0, 0.0));
-            }
-            else {
+            } else {
                 // Other nodes are initialized around start node with different (not random) coordinates.
                 let (x, y) = init_logic(i);
 
@@ -96,7 +117,7 @@ impl<'a> GraphOptimization<'a> {
         }
 
         // Sort vector by NodePos.no to enable index-based access (so positions[x] -> node_x.
-        positions.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        positions.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO: check if this is really necessary to map!
 
         return positions;
     }
@@ -121,41 +142,52 @@ impl<'a> GraphOptimization<'a> {
             f32::sqrt(a.powi(2) + b.powi(2))
         };
 
-
         // Spring constant (= Federkonstante) depends on graphs value (variation might be necessary!)
         let k = f32::sqrt((40 / graph.node_len) as f32);
+
+        // Attraction constant
+        let a: f32 = 1.0;
 
         for i in 0..=Self::ITERATIONS {
             let mut totalDisplacement = 0;
 
-            // Calculate repulsive (= abstoßungs) forces between nodes.
-            for edge in graph.edges {
-                if edge.source() != edge.dest() {
-                    // Location vector (= Ortsvektor).
-                    let u = &positions[edge.source().no() as usize].pos;
-                    let v = &positions[edge.dest().no() as usize].pos;
+            for i in 0..=graph.node_len() - 1
+            /* TODO: Be careful! This condition forces the graph to have at least one node! */
+            {
+                // Location vector (previous sorting in init function causes that
+                let mut v = &positions[i].pos;
+                let mut dv = &positions[i].vel;
+                let u = &positions[i + 1].pos;
 
-                    // Acceleration vectors.
-                    let mut du = &positions[edge.source().no() as usize].vel;
-                    let mut dv = &positions[edge.source().no() as usize].vel;
+                // Calculate repulsion force:
+                // Distance vector:
+                let dist = v.subtract_sub(u); // operator overloading: subtract two tuples of size 2!
+                let dist_amount = amount(dist);
 
-                    // Difference vector
-                    let delta = u.subtract_sub(v);
+                // TODO: Repulsion force shall affected by the weight of the connected edge between v and u. Higher weight should result in larger distance between the nodes while lower weight should cause smaller distance.
 
-                    // Normed distance to both points.
-                    let dist = norm(delta);
+                let repulse_force = -k / dist_amount.powi(2);
+                let attract_force = a * dist_amount;
+                let result_force = repulse_force + attract_force;
 
-                    if amount(dist) > 0.0 {
-                        let force = k * k / dist * delta;
+                //let repulse_force = dist.multiply_scalar(-k); // operator overloading: multiplies scalar with tuple of size 2!
+                dv = *(dv.0 + result_force, dv.1 + result_force);
 
-                        // TODO: Das geht so nicht! Operatorüberladung von gestern verwenden!
-                        du = du - (force / edge.weight(), force / edge.weight());
-                        dv = dv + (force / edge.weight(), force / edge.weight());
-                    }
+                let v_old = v.clone();
+
+                // Update nodes position depending on current acceleration:
+                v = v + dv.multiply_scalar(dt);
+
+                // Calculate difference in old and new position:
+                let diff_amount = amount(v - v_old);
+
+                totalDisplacement += diff_amount;
+
+                if totalDisplacement < Self::threshold {
+                    break;
                 }
             }
         }
-
         graph
     }
 }
