@@ -1,6 +1,7 @@
 mod Graph;
 mod Dijkstra;
 mod Constants;
+mod GNUPlotPrinter;
 mod GraphOptimization;
 
 // Own objects.
@@ -47,6 +48,8 @@ fn main() {
     let mut graph = Graph::Graph::new("graph1".to_string(), nodes.clone(), edges.clone(), Vec::new());
 
     let result = Dijkstra::Dijkstra::run(&mut graph, &nodes[0]);
+
+    let opt = GraphOptimization::GraphOptimization::run(&mut graph, &nodes[0]);
 
 // (Everything works in this comment)
     println!("{}", Constants::INTRO);

@@ -1,14 +1,14 @@
 // Own objects.
 use crate::Graph::Graph;
 use crate::Graph::node::Node;
-use crate::Graph::edge::Edge;
+//use crate::Graph::edge::Edge;
 
 // Standard library.
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
 use crate::Graph::graph_type::graph_enum::GraphType;
-use crate::Graph::graph_type::graph_enum::GraphType::Undirected;
+//use crate::Graph::graph_type::graph_enum::GraphType;//::Undirected;
 
 // Traits are needed so standard functions can be performed.
 #[derive(PartialEq, Eq, Clone)]
@@ -76,14 +76,7 @@ impl<'a> Dijkstra<'a> {
         let mut result: Vec<DijkstraHeapEle> = Vec::new();
 
         // Copies edges of given graph and sorts them first by id of source node and second by weight.
-        let mut edges = graph.edges.clone();
-        // edges.sort_by(|a, b| { // TODO: Doesn't seem to be necessary since it doesn't improve execution time but needs O(n**3) to sort it
-        //     if a.source().no() == b.source().no() {
-        //         a.weight().cmp(&b.weight())
-        //     } else {
-        //         a.source().no().cmp(&b.source().no())
-        //     }
-        // });
+        let edges = graph.edges.clone();
 
         // Closure iterates through given BinaryHeap until specific node was found, updates its values and pushes each entry back into queue.
         let update_node =
@@ -134,7 +127,7 @@ impl<'a> Dijkstra<'a> {
             Note: Works with directed and undirected edges!
         */
         while !Q.is_empty() /* O(V) */ {
-            if let Some(mut u) = Q.pop() /* WC: O(log(V)) */ {
+            if let Some(u) = Q.pop() /* WC: O(log(V)) */ {
                 N_.insert(u.owner); // O(1), WC: O(V)
 
                 result.push(u.clone()); // O(1), WC: O(V)

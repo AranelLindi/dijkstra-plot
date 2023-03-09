@@ -1,11 +1,9 @@
-mod graph;
-
-pub use graph::Graph;
+use std::fs::File;
 
 struct GNUplotPrinter {}
 
 impl GNUplotPrinter {
     pub fn write2File(graph: graph::Graph, file: String) {
-        // TODO
+        let mut file = File::create("graph.dat");
     }
 }
