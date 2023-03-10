@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::process::Output;
+//use std::process::Output;
 
 use rand::Rng;
 
@@ -22,6 +22,7 @@ trait TupleSub<RHS> {
 }
 
 // Represents A node in the algorithm.
+#[derive(Clone)]
 pub struct NodePos {
     pub no: u32,
     pub pos: (f32, f32),
@@ -98,7 +99,7 @@ impl<'a> GraphOptimization<'a> {
         let mut positions: Vec<NodePos> = Vec::new();
 
         // Closure is used to return initial coordinates for each node by A specific logic so the algorithm doesn't get stuck.
-        let init_logic = |i: usize| -> (f32, f32) {
+        let init_logic = || -> (f32, f32) {
             let mut rng = rand::thread_rng();
 
             let x: f32 = rng.gen_range(0.0..=10.0);
@@ -114,13 +115,13 @@ impl<'a> GraphOptimization<'a> {
         };
 
         // Iterates through
-        for (i, e) in graph.nodes.iter().enumerate() {
+        for (_, e) in graph.nodes.iter().enumerate() {
             if e == start {
                 // Start node shall be in center of graphical representation.
                 positions.push(NodePos::new(start.no(), 0.0, 0.0, 0.0, 0.0));
             } else {
                 // Other nodes are initialized around start node with different (not random) coordinates.
-                let (x, y) = init_logic(i);
+                let (x, y) = init_logic();
 
                 positions.push(NodePos::new(e.no(), x, y, 0.0, 0.0));
             }
@@ -132,7 +133,7 @@ impl<'a> GraphOptimization<'a> {
         return positions;
     }
 
-    pub fn run(graph: &'a mut Graph<'a>, start: &'a Node) -> Vec<NodePos> {
+    pub fn run(graph: &'a Graph<'a>, start: &'a Node) -> Vec<NodePos> {
         let positions: Vec<NodePos> = Self::init(graph, start);
         let node_len = graph.node_len;
 

@@ -13,8 +13,8 @@ use crate::Graph::graph_type::graph_enum::GraphType;
 // Traits are needed so standard functions can be performed.
 #[derive(PartialEq, Eq, Clone)]
 pub struct DijkstraHeapEle<'a> {
-    owner: &'a Node,
-    prev: Option<&'a Node>,
+    pub  owner: &'a Node,
+    pub prev: Option<&'a Node>,
     c: u32,
 }
 

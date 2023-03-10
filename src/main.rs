@@ -8,6 +8,9 @@ mod GraphOptimization;
 use Graph::node::Node;
 use Graph::edge::Edge;
 
+//use Dijkstra::Dijkstra as Dijkstra;
+use GNUPlotPrinter::GNUplotPrinter as GNUplotPrinter;
+
 // Standard library.
 use std::io::Write;
 use crate::Graph::graph_type::graph_enum::GraphType::{Undirected, Directed};
@@ -45,11 +48,14 @@ fn main() {
     edges.push(Edge::new("e13".to_string(), 3, Undirected, &nodes[3], &nodes[9], Vec::new()));
 
 
-    let mut graph = Graph::Graph::new("graph1".to_string(), nodes.clone(), edges.clone(), Vec::new());
+    let graph = Graph::Graph::new("graph1".to_string(), nodes.clone(), edges.clone(), Vec::new());
 
-    let result = Dijkstra::Dijkstra::run(&mut graph, &nodes[0]);
+    let result = Dijkstra::Dijkstra::run(&graph, &nodes[0]);
 
-    let opt = GraphOptimization::GraphOptimization::run(&mut graph, &nodes[0]);
+    let opt = GraphOptimization::GraphOptimization::run(&graph, &nodes[0]);
+
+    GNUplotPrinter::write2File("Graph.dat".to_string(), &graph, &opt, Option::Some(&result));
+
 
 // (Everything works in this comment)
     println!("{}", Constants::INTRO);
