@@ -164,7 +164,7 @@ impl<'a> GraphOptimization<'a> {
                 let norm = norm(dist_vec); // normalized vector
                 let amount = amount(dist_vec); // amount of distance vector
                 let amount_third = amount.powi(3); // amount of distance vector to power of 3
-                let scalar = -Self::K / amount_third * (1.0 - amount / (weight as f32)); //
+                let scalar = -Self::K / amount_third;// * (1.0 - amount / (weight as f32)); //
 
                 norm.multiply_scalar(scalar) // operator overloading: multiplies scalar with tuple of size 2!
             }

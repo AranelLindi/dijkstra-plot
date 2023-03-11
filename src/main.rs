@@ -7,13 +7,15 @@ mod GraphOptimization;
 // Own objects.
 use Graph::node::Node;
 use Graph::edge::Edge;
+use Graph::graph_type::graph_enum::GraphType::{Undirected, Directed};
 
 //use Dijkstra::Dijkstra as Dijkstra;
 use GNUPlotPrinter::GNUplotPrinter as GNUplotPrinter;
 
 // Standard library.
 use std::io::Write;
-use crate::Graph::graph_type::graph_enum::GraphType::{Undirected, Directed};
+use std::path::PathBuf;
+use std::process::Command;
 
 fn main() {
     let mut nodes: Vec<Node> = Vec::new();
@@ -56,9 +58,8 @@ fn main() {
 
     GNUplotPrinter::write2File("Graph.dat".to_string(), &graph, &opt, Option::Some(&result));
 
-
 // (Everything works in this comment)
-    println!("{}", Constants::INTRO);
+/*    println!("{}", Constants::INTRO);
     print!("   GraphML-filepath: ");
 
     // force stream to flush
@@ -69,7 +70,7 @@ fn main() {
     std::io::stdin()
         .read_line(&mut filepath)
         .expect("Error while reading...");
-
+*/
     
 
 
