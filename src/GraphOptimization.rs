@@ -90,10 +90,10 @@ impl<'a> GraphOptimization<'a> {
     // Constants:
     const DT: f32 = 0.1; // time step dt
     const ITERATIONS: usize = 500; // maximum number of ITERATIONS
-    const THRESHOLD: f64 = 0.01; // minimum displacement
+    const THRESHOLD: f32 = 0.001; // minimum displacement
     // Force constants:
-    const K: f32 = 0.5; // repulsion
-    const A: f32 = 0.15; // attraction
+    const K: f32 = 0.01; // repulsion
+    const A: f32 = 0.1; // attraction
 
     fn init(graph: &'a Graph<'a>, start: &'a Node) -> Vec<NodePos> {
         let mut positions: Vec<NodePos> = Vec::new();
@@ -102,8 +102,8 @@ impl<'a> GraphOptimization<'a> {
         let init_logic = || -> (f32, f32) {
             let mut rng = rand::thread_rng();
 
-            let x: f32 = rng.gen_range(0.0..=10.0);
-            let y: f32 = rng.gen_range(0.0..=10.0);
+            let x: f32 = rng.gen_range(0.0..=1.0);
+            let y: f32 = rng.gen_range(0.0..=1.0);
 
             (x, y)
             /*match i % 4 {
@@ -134,7 +134,7 @@ impl<'a> GraphOptimization<'a> {
     }
 
     pub fn run(graph: &'a Graph<'a>, start: &'a Node) -> Vec<NodePos> {
-        let positions: Vec<NodePos> = Self::init(graph, start);
+        let mut positions: Vec<NodePos> = Self::init(graph, start);
         let node_len = graph.node_len;
 
         // Returns normalized vector (tuple of size 2).
@@ -153,28 +153,40 @@ impl<'a> GraphOptimization<'a> {
         };
 
         // Calculates repulsion force with respect on distance vector and edge weight.
-        let calc_repulsion = |dist_vec: &(f32, f32), weight: u32| -> (f32, f32) {
+        let calc_attraction = |dist_vec: &(f32, f32), weight: u32| -> (f32, f32) {
             // Formula: -K/r^3 * norm(r) * (1-r/weight)
 
             if weight == 0 {
                 // If edge weight is 0 (maybe no edge was found in graph.edges) return 0 so repulsion force doesn't exist.
                 (0.0, 0.0)
             } else {
+                let vec = dist_vec.clone();
                 // Interim results:
-                let norm = norm(dist_vec); // normalized vector
-                let amount = amount(dist_vec); // amount of distance vector
-                let amount_third = amount.powi(3); // amount of distance vector to power of 3
-                let scalar = -Self::K / amount_third;// * (1.0 - amount / (weight as f32)); //
+                //let norm = norm(dist_vec); // normalized vector
+                //let amount = amount(dist_vec); // amount of distance vector
+                //let amount_third = amount.powi(3); // amount of distance vector to power of 3
+                //let scalar = -Self::K / amount_third;// * (1.0 - amount / (weight as f32)); //
 
-                norm.multiply_scalar(scalar) // operator overloading: multiplies scalar with tuple of size 2!
+                //norm.multiply_scalar(scalar) // operator overloading: multiplies scalar with tuple of size 2!
+
+                vec.multiply_scalar(Self::A)
             }
         };
 
         // Calculates attraction force with respect to distance vector.
-        let calc_attraction = |dist_vec: &(f32, f32)| -> (f32, f32) {
+        let calc_repulsion = |dist_vec: &(f32, f32)| -> (f32, f32) {
+            let norm = norm(dist_vec);
+            let amount = amount(dist_vec);
+            let amount_third = amount.powi(3);
+            let scalar = -Self::K / amount_third;
+
+            norm.multiply_scalar(scalar)
+
+
             // Formula: A * r
 
-            dist_vec.multiply_scalar(Self::A) // operator overloading: multiplies scalar with tuple of size 2!
+            //dist_vec.multiply_scalar(Self::A) // operator overloading: multiplies scalar with tuple of size 2!
+
         };
 
         // Returns weight of an edge which connects src-node and dst-node.
@@ -191,52 +203,54 @@ impl<'a> GraphOptimization<'a> {
         };
 
         for _ in 0..=Self::ITERATIONS {
-            let mut total_displacement: f64 = 0.0;
+            let mut total_displacement: f32 = 0.0;
 
-            for i in 1..=node_len-1
-            /* TODO: Be careful! This condition forces the graph to have at least one node! */
-            {
-                // Location vector (previous sorting in init function causes that
-                let mut v = &positions[i].pos;
-                let mut dv = &positions[i].vel;
-                let u = &positions[i - 1].pos;
+            for i in 0..node_len /* TODO: Be careful! This condition forces the graph to have at least one node! */ {
+                let mut v = positions[i].pos;
+                let mut dv = positions[i].vel;
 
-                // Current distance vector:
-                let dist = v.subtract_sub(*u); // operator overloading: subtract two tuples of size 2!
+                let mut tmp_old = v;
 
-                // Calculate force vectors on current node v:
-                let repulse_force = calc_repulsion(&dist, get_weight(positions[i].no, positions[i - 1].no));
-                let attract_force = calc_attraction(&dist);
+                // Reset dv vector:
+                dv = (0.0, 0.0); // Could be disabled if previous iteration should still be have an effect to current node
 
-                // Result force vector:
-                let ((ax, ay), (rx, ry)) = (attract_force, repulse_force); // destructure the tuples ...
-                let result_force = (ax + rx, ay + ry); // .. for easier syntax (result force vector)
+                for j in 0..node_len {
+                    if i == j { continue; }
 
-                // Calculate change vector:
-                let ((dx, dy), (fx, fy)) = (dv, result_force); // destructure the tuples ...
-                let dv_vec = &(dx + fx, dy + fy); // ... for easier syntax (this line is necessary otherwise the old reference is overwritten and dropped before its scope ends)
-                dv = &dv_vec; // update
+                    let u = positions[j].pos;
 
-                // Keep current position in cache for later calculations.
-                let v_old = v.clone();
+                    let distance = u.subtract_sub(v);
 
-                // Update node position depending on current acceleration/changes:
-                let dv_update = dv.multiply_scalar(Self::DT); // changes multiplied with DT
-                let ((x, y), (dx, dy)) = (v, dv_update); // destructure the tuples ...
-                let v_vec = (x + dx, y + dy); // ... for easier syntax (this line is necessary otherwise old reference would be overwritten before its scope ends
-                v = &v_vec; // update
+                    let src_no = positions[i].no;
+                    let dst_no = positions[j].no;
 
-                // Calculate difference in old and new position:
-                let ((x, y), (x_old, y_old)) = (v, v_old); // destruct the tuples ...
-                let diff_amount = amount(&(x - x_old, y - y_old)); // ... for easier syntax
+                    // Calculate forces:
+                    let (f_ax, f_ay) = calc_repulsion(&distance);
+                    let (f_rx, f_ry) = calc_attraction(&distance, get_weight(src_no, dst_no));
+                    let (f_resx, f_resy) = (f_ax + f_rx, f_ay + f_ry);
+
+                    let (dv_x, dv_y) = dv;
+
+                    dv = (dv_x + f_resx, dv_y + f_resy);
+                }
+
+                // Update position
+                let ((x, y), (dx, dy)) = (v, dv.multiply_scalar(Self::DT));
+                positions[i].pos = (x + dx, y + dy);
+
+                // Difference vector between old and new position:
+                let ((x, y), (x_old, y_old)) = (v, tmp_old);
+                let diff = (x - x_old, y - y_old);
+                let diff_amount = amount(&diff);
 
                 // update displacement:
-                total_displacement += diff_amount as f64;
+                total_displacement += diff_amount as f32;
 
                 // If displacement is smaller than threshold the algorithm is finished!
-                if total_displacement < Self::THRESHOLD {
-                    break;
-                }
+                //if total_displacement < Self::THRESHOLD {
+                //    print!("Schwellwert!");
+                //    break;
+                //}
             }
         }
         /*
