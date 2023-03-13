@@ -12,7 +12,7 @@ with open("Graph.dat") as file:
     for line in lines:
         line = line.strip() # (Removes leading spaces)
 
-	# Between nodes and edges a blank line is added to mark the section
+    # Between nodes and edges a blank line is added to mark the section
         if line == '': 
             switch = True
             continue
@@ -29,11 +29,20 @@ with open("Graph.dat") as file:
 # Convert data to matplotlib readable structures:
 fig, ax = plt.subplots(figsize=(12, 12))
 
+_, _, _, startnode, _ = nodes[0]
+
+# Plot title
+plt.title("Dijkstra Graph Plot (Start Node: " + startnode + ")", fontsize=30)
+
+# Hide boths axis
+ax.get_xaxis().set_visible(False)
+ax.get_yaxis().set_visible(False)
+
 # Convert nodes:
 for node in nodes:
     no, x, y, id, marked = node # unpack from list
     color = 'red' if marked else 'blue' # set color for each node
-    ax.scatter(x, y, s=80, color=color, label=id) # s = Markergröße (draw single points)
+    ax.scatter(x, y, s=100, color=color, label=id) # s = Markergröße (draw single points)
     ax.annotate(id, (x, y), textcoords='offset points', xytext=(0, 10), ha='center', fontsize=16 ) # add it to plot
 
 # Convert edges:
@@ -44,6 +53,16 @@ for edge in edges:
     mid_y = (y1 + y2) / 2
     ax.plot([x1, x2], [y1, y2], linewidth=4, color=color, label=weight) # linewidth = Linienbreite (draw lines)
     ax.annotate(str(weight), (mid_x, mid_y), textcoords='offset points', xytext=(0, 10), ha='center', fontsize=14) # add it to plot
+
+# Add legend:
+legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label='Unmarked Node', markerfacecolor='blue', markersize=15),
+                   plt.Line2D([0], [0], marker='o', color='w', label='Marked Node', markerfacecolor='red', markersize=15),
+                   plt.Line2D([0], [0], color='blue', label='Unmarked Edge', linewidth=4),
+                   plt.Line2D([0], [0], color='red', label='Marked Edge', linewidth=4)]
+ax.legend(handles=legend_elements, loc='best', fontsize=14)
+
+# Save plot:
+plt.savefig("graph.png")
 
 # Show plot:
 plt.show()
