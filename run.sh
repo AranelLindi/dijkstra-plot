@@ -14,7 +14,12 @@ echo $path # $ is necessary if value stored in variable is needed, otherwise var
 echo "Dijkstra Plot is going to be executed..."
 
 # Execute dijkstra-plot
-./target/debug/dijkstra-plot
+./target/debug/dijkstra-plot -input=$path -output="Graph.dat" -start= -dest=
+
+if [ $? -eq 1 ]; then # $? is a shell variable that contains exit code of last executed command (here: application)
+  echo "Error in rust application!"
+  exit 1 # End script with error code 1
+fi
 
 echo ""
 
@@ -25,7 +30,14 @@ else
 	echo "Graph.dat was not created!"
 fi
 
-# Run python script
-#python3 plot.py
+# Check if matlibplot library is installed
+# shellcheck disable=SC2046
+if [ $(pip show matplotlib >/dev/null 2>&1; echo $?) -eq 0 ]; then
+    # Run python script
+    python3 plot.py -input=$path -output="Graph2.png"
+    echo "Plot is saved in Graph.png"
+  else
+    echo "Python script couldn't be executed because matlibplot library isn't installed on the system!"
+fi
 
-echo "Plot is saved in Graph.png"
+echo "Finished!"

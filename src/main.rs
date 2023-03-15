@@ -13,11 +13,55 @@ use Graph::graph_type::graph_enum::GraphType::{Undirected, Directed};
 use GNUPlotPrinter::GNUplotPrinter as GNUplotPrinter;
 
 // Standard library.
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
+use std::io::Write; // used for command line output
+//use std::path::PathBuf;
+//use std::process::Command;
+use std::env;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let mut input = "";
+    let mut output = "";
+    let mut start = "";
+    let mut dest = "";
+
+    for arg in args.iter() {
+        // GraphML-file
+        if arg.starts_with("-input=") {
+            input = &arg[7..];
+        }
+        else {
+            // Default value:
+            input = "Graph.xml";
+        }
+
+        // Output file (Coordinates for Plot)
+        if arg.starts_with("-output=") {
+            output = &arg[9..];
+        }
+        else {
+            // Default value:
+            output = "Graph.dat";
+        }
+
+        // Start node
+        if arg.starts_with("-start=") {
+            start = &arg[7..];
+        }
+        else {
+            // Default Value:
+            start = "A";
+        }
+
+        // Destination node
+        if arg.starts_with("-dest=") {
+            start = &arg[6..];
+        } // If no argument was passed then perform dijkstra algorithm for whole graph (otherwise until dest node was reached)
+    }
+    // TODO: std::process::exit(1) bedeutet, dass das Programm mit einem Fehler beendet wurde. Dieses also bei ungültigen Parametern etc. zurückgeben. Das Bash Skript fängt das auf und kann dann entscheiden ob weiter gemacht werden soll
+
+
     let mut nodes: Vec<Node> = Vec::new();
     let mut edges: Vec<Edge> = Vec::new();
 
@@ -72,6 +116,7 @@ fn main() {
         .expect("Error while reading...");
 */
     
+
 
 
 
