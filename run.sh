@@ -7,7 +7,7 @@
 # it to a separate window. A png file of the output is also be created.
 # Stefan Lindörfer - 2023
 
-
+# TODO: run "cargo build" here in the script? Figure out how path to rust application is been found.
 
 # 1. Read in necessary information from user:
 read -p $'\e[1mInsert GraphML-File:\e[0m ' input_path

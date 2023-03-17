@@ -81,9 +81,14 @@ for edge in edges:
 for node in nodes:
     no, x, y, id, marked = node  # unpack from list
     color = 'red' if marked else 'blue'  # set color for each node
-    ax.scatter(x, y, s=120, color=color, label=id,
+    if id == startnode: # Start node should be printed more eye-catching!
+        ax.scatter(x, y, s=250, color=color, label=id,
+                   zorder=2)  # s = Markergröße (draw single points); zorder=2 objects are drawn over zorder=1
+        ax.annotate(id, (x, y), textcoords='offset points', xytext=(0, 10), ha='center', fontsize=25)  # add it to plot
+    else:
+        ax.scatter(x, y, s=120, color=color, label=id,
                zorder=2)  # s = Markergröße (draw single points); zorder=2 objects are drawn over zorder=1
-    ax.annotate(id, (x, y), textcoords='offset points', xytext=(0, 10), ha='center', fontsize=16)  # add it to plot
+        ax.annotate(id, (x, y), textcoords='offset points', xytext=(0, 10), ha='center', fontsize=16)  # add it to plot
 
 # Add legend:
 legend_elements = [
