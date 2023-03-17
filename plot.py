@@ -27,7 +27,7 @@ for arg in sys.argv[1:]:
 
 # Abort script if critical information are missing/faulty:
 if file_in is None or file_out is None or not os.path.isfile(file_in):
-    print(f"{name}: Invalid parameter values and/or source file doesn't exist!")
+    print(f"\033[1m{name}:\033[0m Invalid parameter values and/or source file doesn't exist!")
     sys.exit(1)
 
 # Start of actual work:
@@ -96,7 +96,7 @@ ax.legend(handles=legend_elements, loc='best', fontsize=14)
 # Save plot:
 plt.savefig(file_out)
 
-print(f"Plot was saved at {file_out}")
+print(f"\033[1m{name}:\033[0m Plot was saved at \033[1m{file_out}\033[0m")
 
 # Show plot:
 plt.show()
