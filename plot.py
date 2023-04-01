@@ -75,7 +75,7 @@ for edge in edges:
     ax.plot([x1, x2], [y1, y2], linewidth=4, color=color, label=weight,
             zorder=1)  # linewidth = Linienbreite (draw lines)
     ax.annotate(str(weight), (mid_x, mid_y), textcoords='offset points', xytext=(0, 10), ha='center',
-                fontsize=14)  # add it to plot
+                fontsize=14, zorder=2)  # add it to plot
 
 # Convert and add nodes to plot:
 for node in nodes:

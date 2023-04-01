@@ -15,13 +15,19 @@ read -p $'\e[1mInsert Data Output File:\e[0m ' output_path
 read -p $'\e[1mInsert Start Node:\e[0m ' start
 read -p $'\e[1mInsert Destination Node:\e[0m ' dest
 
+# TODO: Just for debugging!
+if [ -z "$input_path" ]; then # Checks only if output path is empty and assigns them a default value instead
+  input_path="Graph.dat" # Important: no spaces between expression are allowed! (e.g. input_path = "Graph.xml") otherwise each construct is interpreted as an command!
+fi
+# TODO: Just for debugging!
+
 # 1.1 Check inputs for validity:
 if [ -z "$input_path" ] || ! [ -e "$(pwd)/$input_path" ]; then # Checks if input_path is empty or no file exists under the path
 	echo -e "\033[1m$BASH_SOURCE:\033[0m \033[31mInvalid GraphML-file parameter entered!\033[0m"
 	exit 1
 fi
 if [ -z "$output_path" ]; then # Checks only if output path is empty and assigns them a default value instead
-  output_path="Graph.dat" # Important: no spaces between expression are allowed! (e.g. input_path = "Graph.xml") otherwise each construct is interpreted as an command!
+  output_path="Plot.png" # Important: no spaces between expression are allowed! (e.g. input_path = "Graph.xml") otherwise each construct is interpreted as an command!
 fi
 
 # At this point: All information are valid!
