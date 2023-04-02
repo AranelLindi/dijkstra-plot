@@ -1,6 +1,6 @@
 mod Graph;
 mod Dijkstra;
-mod Constants;
+mod GraphML;
 mod GraphOutput;
 mod GraphPositioning;
 

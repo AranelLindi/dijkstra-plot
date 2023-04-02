@@ -133,7 +133,7 @@ impl<'a> Dijkstra<'a> {
                 result.push(u.clone()); // O(1), WC: O(V)
 
                 for edge in edges.iter() /* WC: O(E) */ {
-                    // Might be that there's a more favorable path to dest node when taking edge backwards. If its not forbidden (because directed edge) then check both directions!
+                    // Might be that there's a more cheaper path to dest node when taking edge backwards. If its not forbidden (because directed edge) then check both directions!
                     let origin_node_ref: Option<&Node> = {
                         if edge.source() == u.owner /* If edge is not considered inverted, the consideration of the direction condition is superfluous */ {
                             Some(edge.dest())
@@ -149,7 +149,7 @@ impl<'a> Dijkstra<'a> {
                             let dist: u32 = edge.weight() + u.c;
 
                             if let Some(c) = get_cost(v, Q.borrow_mut()) /* WC: O(V) */ {
-                                // Important that '<' and not '<=' is used! Otherwise an endless loop can occur!
+                                // Potential new path costs must be real smaller than current path costs:
                                 if dist < c {
                                     Q = update_node(v, Option::from(u.owner), dist, Q.borrow_mut()); // WC: O(V*log(V)) // TODO: Must be designed even more favorable!
                                 }

@@ -181,7 +181,7 @@ impl<'a> GraphOptimization<'a> {
 
         // Algorithm: Iterate at least ITERATIONS-times (unless quit-condition is fulfilled)
         for _ in 0..=Self::ITERATIONS /* O(1) */ {
-            let mut total_displacement: f32 = 0.0; // Gets reset each new iteration
+            let mut total_displacement: f32 = 0.0; // Gets reset for every new iteration
 
             for i in 0..node_len /* O(n) TODO: Be careful! This condition forces the graph to have at least one node! */ {
                 // Reference to current node's position:
@@ -233,9 +233,7 @@ impl<'a> GraphOptimization<'a> {
                 break;
             }
         }
-        /*
-          Runtime: O(n**3)
-         */
+        /* Cost complexity of this algorithm: O(n**3) */
 
         positions
     }
