@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns
+     http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+    <!-- Definitions of key elements -->
+    <key id="k0" for="all" attr.name="key_all" attr.type="string">
+        <default>Hello World</default>
+    </key>
+    <key id="k1" for="edge" attr.name="edge_0" attr.type="string">
+        <default>green</default>
+    </key>
+    <graph id="G" edgedefault="undirected">
+        <!-- First node definitions then edges -->
+        <node id="A">
+            <!-- If key value want to be overwritten, new value must be placed here -->
+            <data key="k0">Nothing</data>
+        </node>
+        <node id="B"/>
+        <node id="C"/>
+        <node id="D"/>
+        <node id="E"/>
+        <node id="F"/>
+        <node id="G"/>
+        <node id="H"/>
+        <node id="I"/>
+        <node id="J"/>
+        <node id="K"/>
+        <edge id="e0" directed="false" weight="6" source="A" target="G">
+            <data key="k1">yellow</data>
+        </edge>
+        <edge id="e1" directed="false" weight="1" source="H" target="G"/>
+        <edge id="e2" directed="false" weight="3" source="I" target="A"/>
+        <edge id="e3" directed="false" weight="5" source="J" target="A"/>
+        <edge id="e4" directed="false" weight="7" source="B" target="H"/>
+        <edge id="e5" directed="false" weight="2" source="B" target="J"/>
+        <edge id="e6" directed="false" weight="4" source="B" target="C"/>
+        <edge id="e7" directed="false" weight="3" source="C" target="D"/>
+        <edge id="e8" directed="false" weight="2" source="D" target="K"/>
+        <edge id="e9" directed="false" weight="2" source="D" target="E"/>
+        <edge id="e10" directed="false" weight="8" source="K" target="F"/>
+        <edge id="e11" directed="false" weight="6" source="E" target="H"/>
+        <edge id="e12" directed="false" weight="4" source="F" target="G"/>
+        <edge id="e13" directed="false" weight="3" source="D" target="J"/>
+    </graph>
+</graphml>
