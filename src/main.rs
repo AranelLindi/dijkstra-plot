@@ -94,7 +94,7 @@ fn main() {
     edges.push(Edge::new("e13".to_string(), 3, Undirected, &nodes[3], &nodes[9], Vec::new()));
 
 
-    let graph = Graph::Graph::new("graph1".to_string(), nodes.clone(), edges.clone(), Vec::new());
+    let graph = Graph::Graph::new("graph1".to_string(), Box::from(nodes.clone()), Box::from(edges.clone()), Box::from(Vec::new()));
 
     let result = Dijkstra::Dijkstra::run(&graph, &nodes[0]);
 

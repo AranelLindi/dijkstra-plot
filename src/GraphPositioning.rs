@@ -25,13 +25,13 @@ trait TupleSub<RHS> {
 // Represents A node in the algorithm.
 #[derive(Clone)]
 pub struct NodePos {
-    pub no: u32,
+    pub no: usize,
     pub pos: (f32, f32),
     pub vel: (f32, f32),
 }
 
 impl NodePos {
-    fn new(no: u32, x: f32, y: f32, dx: f32, dy: f32) -> Self {
+    fn new(no: usize, x: f32, y: f32, dx: f32, dy: f32) -> Self {
         NodePos {
             no,
             pos: (x, y),
@@ -166,7 +166,7 @@ impl<'a> GraphOptimization<'a> {
         };
 
         // Returns weight of an edge which connects src-node and dst-node.
-        let get_weight = |src: u32, dst: u32| -> u32 /* O(n) */ {
+        let get_weight = |src: usize, dst: usize| -> u32 /* O(n) */ {
             let opt_edge = graph
                 .edges
                 .iter()
@@ -198,7 +198,7 @@ impl<'a> GraphOptimization<'a> {
                     let u = &positions[j].pos;
 
                     // Try to find connecting edge between v and the j-th node.
-                    let cur_weight = (get_weight(i as u32, j as u32) as f32);
+                    let cur_weight = (get_weight(i, j) as f32);
 
                     // Calculate distance between both nodes.
                     let distance = u.subtract_sub(v);

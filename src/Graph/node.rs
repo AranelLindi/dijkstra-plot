@@ -2,23 +2,24 @@ use crate::Graph::igraph_object::IgraphObject;
 use crate::Graph::key::Key;
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Node {
+pub struct Node /* Lifetime parameter is necessary here because each Edge object has references to Nodes. So they must live as long as Edges<'a> live */ {
     id: String, /* It would also be possible to use a static lifetime here. That would be mean that the object is deallocated when the node object is deallocated. Lifetime 'a makes sure that the variable is deallocated at earliest when it is not longer needed */
     keys: Vec<Key>,
-    no: u32,
-    //marker: std::marker::PhantomData<&'a &'b()> /* Phantom Object: Contains no data, but is useful to convince the compiler that lifetime requirements are met. In this case: Node must be at least live as long as Edge lives. Edge got the lifetime parameter 'b for its references to Node, so Node must use 'b too! */
+    no: usize,
+    //marker: std::marker::PhantomData<&'a()> /* Phantom Object: Contains no data, but is useful to convince the compiler that lifetime requirements are met. In this case: Node must be at least live as long as Edge lives. Edge got the lifetime parameter 'b for its references to Node, so Node must use 'b too! */
 }
 
 impl Node {
-    pub fn no(&self) -> u32 {
+    pub fn no(&self) -> usize {
         self.no
     }
 
-    pub fn new(id: String, keys: Vec<Key>, no: u32) -> Self {
+    pub fn new(id: String, keys: Vec<Key>, no: usize) -> Self {
         Self {
             id,
             keys,
-            no
+            no,
+            //marker: Default::default(),
         }
     }
 }

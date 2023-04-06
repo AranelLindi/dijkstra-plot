@@ -17,7 +17,7 @@ use std::process::exit;
 
 // Represents graphical form of a node.
 struct NodePlot {
-    no: u32,
+    no: usize,
     x: f32,
     y: f32,
     id: String,
@@ -26,7 +26,7 @@ struct NodePlot {
 
 impl NodePlot {
     // Constructor (associative function)
-    fn new(no: u32, x: f32, y: f32, id: String, marked: bool) -> Self {
+    fn new(no: usize, x: f32, y: f32, id: String, marked: bool) -> Self {
         NodePlot {
             no,
             x,
@@ -39,15 +39,15 @@ impl NodePlot {
 
 // Represents graphical form of an edge.
 struct EdgePlot {
-    from: u32,
-    to: u32,
+    from: usize,
+    to: usize,
     weight: u32,
     marked: bool,
 }
 
 impl EdgePlot {
     // Constructor (associative function)
-    fn new(from: u32, to: u32, weight: u32, marked: bool) -> Self {
+    fn new(from: usize, to: usize, weight: u32, marked: bool) -> Self {
         EdgePlot {
             from,
             to,
