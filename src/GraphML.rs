@@ -1,20 +1,16 @@
 extern crate minidom;
 
 use std::collections::HashSet;
-//use std::fmt::format;
-use std::fs;
 use minidom::Element;
+use std::fs;
 
-//use std::fs::File;
-//use std::io::prelude;
-//use std::ops::BitOr;
-use crate::Graph::{Graph, Edge, IgraphObject, Key, Node};
 use crate::Graph::graph_type::graph_enum::GraphType;
 use crate::Graph::key_type::key_enum::KeyType;
+use crate::Graph::{Edge, Graph, IgraphObject, Key, Node};
 use crate::GraphML::key_for::KeyFor;
 
 pub mod key_for {
-    #[derive(Debug, Clone, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)] // TODO: Brauche ich hier alle?
     pub enum KeyFor {
         Graph,
         Node,
@@ -24,48 +20,50 @@ pub mod key_for {
 }
 
 struct GraphML<'a> {
-    marker: std::marker::PhantomData<&'a()>
+    marker: std::marker::PhantomData<&'a ()>,
 }
 
 // Constants used in GraphML files:
 const ROOT_NAME: &str = "graphml";
+const GRAPH_NAME: &str = "graph";
 const NODE_NAME: &str = "node";
 const EDGE_NAME: &str = "edge";
 const DATA_NAME: &str = "data";
 const KEY_NAME: &str = "key";
+// TODO: Hier alle Strings definieren! Spart Speicherplatz!
 
 impl<'a> GraphML<'a> {
-
     // Checks if passed id is already part of a set (and therefore already used).
     fn unused_id(id_set: &HashSet<&str>, id_str: &str) -> bool {
-        //let test = id_str.clone();
         if id_str == "" || id_set.contains(id_str) {
-            false
+            false // already used or empty
         } else {
-            true
+            true // not used so far
         }
     }
 
-    // Creates a vector with all data values the graph element has.
+    // Creates a vector with all data values the graph element has. (E.g. <ele><data key="xyz">[value]</key>...</ele>)
     fn create_data_list(ele: &Element, id_str: &str) -> Vec<(String, String)> {
+        // Vector of found (key_id, key_value):
         let mut datas: Vec<(String, String)> = Vec::new();
 
+        // Iterates through all data node the element has:
         for data in ele.children().filter(|&n| n.name() == DATA_NAME) {
             let key = data.attr("key");
 
             match key {
-                Some(key_str) if key_str != "" => {
+                Some(key_value) if key_value != "" => {
                     // key exists and is valid
                     let value = data.text();
-                    datas.push((key_str.parse().unwrap(), value))
-                },
+                    datas.push((key_value.parse().unwrap(), value))
+                }
                 Some(_) => {
                     // key exists but is empty
                     println!("Missing key id! ({})", id_str);
                     continue;
                 }
                 None => {
-                    // no key attribute was found
+                    // no key attribute was found (no assignment possible)
                     println!("Missing key attribute! ({})", id_str);
                     continue;
                 }
@@ -75,25 +73,32 @@ impl<'a> GraphML<'a> {
         datas
     }
 
+    // Error function: Appends passed error message to global string and returns None (often used, therefore swapped out as function!)
     fn errfun<T>(error_string: &mut String, error_message: &str) -> Option<T> {
-        error_string.push_str(error_message);
+        error_string.push_str(error_message); // appends message
         None
     }
 
-    // This function uses all key definitions, checks if they are valid for the current object type (expr) and/or if there is a value that overwrites the default value
+    // This function uses all key definitions (keys_map), checks if they are valid for the current object type (expr) and/or if there is a value that overwrites the default value (datas)
     fn key_fusion(keys_map: &Vec<(Key, KeyFor)>, datas: Vec<(String, String)>, expr: impl Fn(&KeyFor) -> bool) -> Vec<Key> {
+        // Will contain all keys that affect the current object:
         let mut keys: Vec<Key> = Vec::new();
 
-        // Check all keys that affect nodes or all elements: (ref keyword is necessary to avoid a move and use a reference binding instead; matches!-macro is useful to make a comparison with enum values)
-        for (_, &(ref key, _)) in keys_map.iter().enumerate().filter(|&(_, &(_, ref fortype))| matches!(fortype, _x if expr(fortype))) { // TODO: Gut testen, mögliche Fehlerquelle!
+        // Check all keys that affect in expr specified elements: (ref keyword is necessary to avoid a move and use a reference binding instead; matches!-macro is useful to make a comparison with enum values)
+        for (_, &(ref key, _)) in keys_map
+            .iter()
+            .enumerate()
+            .filter(|&(_, &(_, ref fortype))| matches!(fortype, _x if expr(fortype)))
+        {
+            // TODO: Gut testen, mögliche Fehlerquelle!
             let mut key_cpy = key.clone();
 
-            // For each key that affects nodes as well as all objects iterate through found data elements whether theres a value which overwrites default value
+            // For each key that affects the current object, the data elements found are checked to see if there is a value that overrides the default value
             for (id, value) in datas.iter() {
                 if *id == key.id {
-                    // New value was found!
+                    // New value was found - replace!
                     key_cpy.value = value.clone();
-                    break; // because key id must be unique through whole document, search for other elements is trivial
+                    break; // because key id must be unique through whole document (at this point ensured), search for further elements in datas is trivial!
                 }
             }
 
@@ -104,355 +109,470 @@ impl<'a> GraphML<'a> {
         keys
     }
 
-    pub fn create_graph(graphml_path: String) -> Result<Box<Graph<'a>>, Box<String>> {
-        // String could be very big therefore put it on heap:
+    // Creates a graph object out of file path to GraphML (XML)-file.
+    pub fn create_graph(graphml_path: String) -> Result<Result<Graph<'a>, String>, Box<String>> {
+        // Contains error messages. (String could be very big therefore put it on heap):
         let mut error_string: Box<String> = Box::new(String::new());
 
-        // Open GraphML file:
-        let file = fs::read_to_string(&graphml_path);
-        let graphml = file.unwrap_or_else(|_| String::new()); // Contains either content of file or an empty string
-
-        // Contains XML document.
-        let xdoc: Element = graphml.parse().unwrap();
-
-        // Ordering of element in GraphML file: keys -> nodes -> edges
-        let mut keys_map: Vec<(Key, KeyFor)> = Vec::new();
-        let mut nodes: Box<Vec<Node>> = Box::from(Vec::new());
-        let mut edges: Box<Vec<Edge>> = Box::from(Vec::new());
-
-        //let mut graph: Box<Graph>;
-
+        // Contains XML document (respective GraphML):
+        let xdoc: Element = {
+            // Open GraphML file:
+            let file = fs::read_to_string(&graphml_path);
+            // Parse file into String:
+            let xml = file.unwrap_or_else(|_| String::new());
+            // Parse String into XML element:
+            xml.parse().unwrap()
+        };
+        // Ordering of elements in GraphML file: keys -> nodes -> edges
 
         // 1. Check first if theres a graphml-root-node:
         if xdoc.name().to_lowercase() == ROOT_NAME {
-            // 2. Global graph settings:
+            // 2. Keys.
 
-            // Graph Id has a special meaning. Because it must already be specified in the constructor, its validity must be checked here immediately!
-            let graphid = match xdoc.attr("id") {
-                Some(value) => Some(value),
-                None => {
-                    Self::errfun(&mut error_string, &format!("Missing graph id attribute!\n"))
-                }
-            };
-            if let None = graphid {
-                return Err(Box::new("Missing graph id!\n".parse().unwrap()));
-            }
+            // Will contain all key definitions and which elements they are affecting:
+            let mut keys_map: Vec<(Key, KeyFor)> = Vec::new();
 
-            // 2.1 Determine whether theres a global instruction about edges direction (It is not forced to define that globally! So its not necessary to produce error message!)
-            let edgedefault = match xdoc.attr("edgedefault") {
-                Some(value) => match value {
-                    "directed" => Some(GraphType::Directed),
-                    "undirected" => Some(GraphType::Undirected),
-                    _ => None,
-                },
-                None => None
-            };
-
-            // 3. Keys.
             {
-                // Needed variables:
-                // HashSet to detect keys with same name:
+                // 2.1 Needed temp variables:
+                // HashSet to detect keys with same name to ensure that no id is used more than once:
                 let mut keyid: HashSet<&str> = HashSet::new();
 
-                /*
-                  Iterate though all keys:
-                  All attributes in a Key element must be given! Thats why the code always defines a
-                  default value and checks not if an attribute really exists
-                 */
-                for (i, key) in xdoc.children().filter(|&n| n.name() == KEY_NAME).enumerate() { // TODO: key id must be unique! Implement a checker for that issue!
-                    // id.
+                /* 2.2 Iterates through all key elements. Each key element must have the following attributes/nodes:
+                Attributes:
+                - id (String)
+                - for (KeyFor)
+                - attr.name (String)
+                - attr.type (KeyTpe)
+                Nodes:
+                - default (depending on attr.type but interpreted as String)
+
+                If any attribute/node is missing, key cannot be generated!
+                */
+                for (i, key) in xdoc
+                    .children()
+                    .filter(|&n| n.name() == KEY_NAME)
+                    .enumerate()
+                {
+                    // 2.2.1 id.
                     let id = match key.attr("id") {
-                        Some(value) if Self::unused_id(&keyid, value) => {
+                        Some(id_value) if Self::unused_id(&keyid, id_value) => {
                             // Valid id!
-                            keyid.insert(value); // update id set
-                            Some(value)
-                        },
-                        Some(value) => {
+                            keyid.insert(id_value); // update id set
+                            Some(id_value)
+                        }
+                        Some(id_value) => {
                             // Id exists but is used twice!
-                            Self::errfun(&mut error_string, &format!("Multiple use of an id! (id:{})\n", value))
-                        },
+                            Self::errfun(
+                                &mut error_string,
+                                &format!("Multiple use of an id! (id:{})\n", id_value),
+                            )
+                        }
                         _ => {
                             // No id was found!
                             Self::errfun(&mut error_string, &format!("Missing id ! (#{})\n", i))
-                        },
+                        }
                     };
 
-                    // attr.name
-                    let attrname = match key.attr("attr.name") {
-                        Some(value) => Some(value),
-                        None => {
-                            Self::errfun(&mut error_string, &format!("No attr.name defined! (#{})\n", i))
-                        },
-                    };
-
-                    // for
+                    // 2.2.2 for
                     let attrfor = match key.attr("for") {
-                        Some(value) => match value {
+                        Some(attrfor_value) => match attrfor_value {
                             "graph" => Some(KeyFor::Graph),
                             "node" => Some(KeyFor::Node),
                             "edge" => Some(KeyFor::Edge),
                             "all" => Some(KeyFor::All),
-                            _ => {
-                                Self::errfun(&mut error_string, &format!("Invalid value of for attribute! (#{})\n", i))
-                            },
+                            _ => Self::errfun(
+                                &mut error_string,
+                                &format!("Invalid value of for attribute! (#{})\n", i),
+                            ),
                         },
-                        None => {
-                            Self::errfun(&mut error_string, &format!("Missing for attribute! (#{})\n", i))
-                        }
+                        None => Self::errfun(
+                            &mut error_string,
+                            &format!("Missing for attribute! (#{})\n", i),
+                        ),
                     };
 
-                    // attr.type
+                    // 2.2.3 attr.name
+                    let attrname = match key.attr("attr.name") {
+                        Some(attrname_value) => Some(attrname_value),
+                        None => Self::errfun(
+                            &mut error_string,
+                            &format!("No attr.name defined! (#{})\n", i),
+                        ),
+                    };
+
+                    // 2.2.4 attr.type
                     let attrtype = match key.attr("attr.type") {
-                        Some(value) => match value {
+                        Some(attrtype_value) => match attrtype_value {
                             "boolean" => Some(KeyType::Boolean),
                             "int" => Some(KeyType::Int),
                             "long" => Some(KeyType::Long),
                             "float" => Some(KeyType::Float),
                             "double" => Some(KeyType::Double),
                             "string" => Some(KeyType::String),
-                            _ => {
-                                Self::errfun(&mut error_string, &format!("Invalid value for attr.type! (#{})\n", i))
-                            },
+                            _ => Self::errfun(
+                                &mut error_string,
+                                &format!("Invalid value for attr.type! (#{})\n", i),
+                            ),
                         },
-                        None => {
-                            Self::errfun(&mut error_string, &format!("Missing attr.type attribute! (#{})\n", i))
-                        }
+                        None => Self::errfun(
+                            &mut error_string,
+                            &format!("Missing attr.type attribute! (#{})\n", i),
+                        ),
                     };
 
-                    // value
+                    // 2.2.5 value (A default value must be defined! Otherwise must be secured that each element which implements that key has an own value for it (which is to complicated))
                     let value = match key.get_child("default", "") /* TODO: Might be that "" as namespace didn't work as expected! */ {
-                        Some(default_node) => Some(default_node.text()),
+                        Some(default_node) => Some(default_node.text()) /* inner text of node */,
                         None => {
                             Self::errfun(&mut error_string, &format!("Missing default value! (#{})\n", i))
                         }
                     };
 
-                    // Additional constraints to check:
+                    // 2.2.6 Additional constraints to check:
                     // None
 
-                    // Check if key was correctly parsed and then insert it into key collection.
-                    if id.is_some() && attrname.is_some() && attrfor.is_some() && attrtype.is_some() && value.is_some() {
-                        keys_map.push((Key {
-                            id: id.unwrap().to_string(),
-                            attrname: attrname.unwrap().to_string(),
-                            attrtype: attrtype.unwrap(),
-                            value: value.unwrap() },
-                                       attrfor.unwrap()));
-                    }
-                    else {
+                    // 2.2.7 Check if key was correctly parsed and then insert it into key collection.
+                    if id.is_some() && attrfor.is_some() && attrname.is_some() && attrtype.is_some() && value.is_some() {
+                        keys_map.push((
+                            Key {
+                                id: id.unwrap().to_string(),
+                                attrname: attrname.unwrap().to_string(),
+                                attrtype: attrtype.unwrap(),
+                                value: value.unwrap(),
+                            },
+                            attrfor.unwrap(),
+                        ));
+                    } else {
                         return Err(Box::from(format!("Found key errors:\n{}", error_string)));
                     }
                 }
             }
 
-            // 3.1 Select keys that affect graph object: (for better readability create_data_list was passed here as parameter (and to avoid name conflicts with following variables)
-            let keys_graph = Self::key_fusion(&keys_map, Self::create_data_list(&xdoc, "graphml"), |x|(x == &KeyFor::All) || (x == &KeyFor::Graph));
+            // 3. Graph-Node:
+            // Following variables will contain all information which is necessary to create both Node and Edge objects (needed until end of function!):
+            let mut nodes: Vec<(String, Vec<Key>, usize)> = Vec::new(); // vector tuple: ([id], Vec[keys], [no])
+            let mut edges: Vec<(String, u32, GraphType, usize, usize, Vec<Key>)> = Vec::new(); // vector tuple: ([id], [weight], [directed], [source node number], [target node number], Vec[keys])
 
-            //if graphid.is_some() {
-            //graph = Box::from(Graph::new(graphid.unwrap().to_owned(), Box::from(Vec::new()), Box::from(Vec::new()), Box::from(keys_graph)));
-            // 4. Nodes.
-            {
-                // Needed variables:
-                let mut counter: usize = 0;
-                // HashSet to detect nodes with same id:
-                let mut node_ids: HashSet<&str> = HashSet::new();
-
-                // Iterate through all nodes:
-                for (i, node) in xdoc.children().filter(|n| n.name() == NODE_NAME).enumerate() {
-                    // Id
-                    let id = match node.attr("id") {
-                        Some(value) if Self::unused_id(&node_ids, value) => {
-                            // Valid node id.
-                            node_ids.insert(value); // update node id set
-                            Some(value)
-                        },
-                        Some(value) => {
-                            // Multiple used id.
-                            Self::errfun(&mut error_string, &format!("Multiple used node id! (id:{})\n", value))
-                        },
-                        None => {
-                            Self::errfun(&mut error_string, &format!("Missing node id! (#{})\n", i))
-                        }
-                    };
-
-                    if let Some(id_str) = id {
-                        // It is not forced that a node must have keys and default value, so this could also be done here first:
-                        // Collects all data elements the node might have.
-                        let datas = Self::create_data_list(node, id.unwrap());
-
-                        // Check all keys that affect nodes or all elements: (ref keyword is necessary to avoid a move and use a reference binding instead; matches!-macro is useful to make a comparison with enum values)
-                        let keys = Self::key_fusion(&keys_map, datas, |x| (x == &KeyFor::All || x == &KeyFor::Node)); // TODO: Gut testen, mögliche Fehlerquelle!
-
-                        // Increase counter:
-                        counter += 1;
-
-                        // Here: All information are gathered to create new node:
-                        nodes.push(Node::new(id_str.parse().unwrap(), keys, i));
-                    }
-                    else {
-                        return Err(Box::from(format!("Found node errors:\n{}", error_string)));
-                    }
+            // 3.1 Switch to graph node (there must be only exactly one graph node):
+            if let Some(graph_node) = xdoc.children().find(|n| n.name() == GRAPH_NAME) {
+                // 3.1.1 Graph Id has a special meaning: Because it must already be specified in the constructor, its validity must be checked here!
+                let graphid = match xdoc.attr("id") {
+                    Some(graphid_value) => Some(graphid_value) /* graph id is always unique because application supports only one graph node */,
+                    None => Self::errfun(&mut error_string, &format!("Missing graph id attribute!\n")),
+                };
+                if let None = graphid {
+                    // Because of that determination, all other evaluation of graphid is unnecessary
+                    return Err(Box::new("Missing graph id!\n".parse().unwrap()));
                 }
 
-                // Additional constraints to check:
-                // - There must be at least two nodes
-                if counter < 2 {
-                    return Err(Box::from(format!("Found node errors:\nGraph must have at least two nodes!\n{}", error_string)));
-                }
-            }
-
-            //}
-            //graph.nodes = nodes;
-
-            // 5. Edges:
-            {
-                // Needed variables:
-                let mut counter: usize = 0;
-
-                // Needed closures:
-                // Searches in all known nodes for the one with specified id (At this point: Its ensured that all node id's are unique)
-                let node_ref = |src: &str| -> Option<usize> {
-                    let opt_node = nodes.iter().find(|&n|n.get_id() == src);
-                    match opt_node {
-                        Some(val) => Some(val.no()),
-                        None => None,
-                    }
+                // 3.1.2 Determine whether theres a global instruction about edges direction
+                // It is not forced to define that globally! So its not necessary to produce a error message if it fails!
+                let edgedefault = match xdoc.attr("edgedefault") {
+                    Some(edgedefault_value) => match edgedefault_value {
+                        "directed" => Some(GraphType::Directed),
+                        "undirected" => Some(GraphType::Undirected),
+                        _ => None,
+                    },
+                    None => None,
                 };
 
-                // HashSet to detect edges with same id:
-                let mut edge_ids: HashSet<&str> = HashSet::new();
+                // 4. Nodes.
+                {
+                    // 4.1 Needed temp variables:
+                    // Counter to determine how many nodes are created:
+                    let mut counter: usize = 0;
+                    // HashSet to detect nodes with same id to ensure that no id is used more than once:
+                    let mut node_ids: HashSet<&str> = HashSet::new();
 
-                // Iterate through all edges:
-                for (i, edge) in xdoc.children().filter(|n| n.name() == EDGE_NAME).enumerate() {
-                    // id
-                    let id = match edge.attr("id") {
-                        Some(value) if Self::unused_id(&edge_ids, value) => Some(value),
-                        Some(value) => {
-                            Self::errfun(&mut error_string, &format!("Multiple used edge id! (id:{})\n", value))
-                        },
-                        None => {
-                            Self::errfun(&mut error_string, &format!("Missing edge id attribute! (#{})\n", i))
-                        }
-                    };
+                    /* 4.2 Iterates through all node elements. Each node element must have the following attributes/nodes:
+                    Attributes:
+                    - id (String)
+                    Nodes: (optional)
+                    - default
 
-                    // weight:
-                    let weight = match edge.attr("weight") {
-                        Some(value) => {
-                            let _weight = value.parse::<u32>();
-                            match _weight {
-                                Ok(val) => Some(val),
-                                Err(_) => {
-                                    Self::errfun(&mut error_string, &format!("Invalid value for edge weight! (#{})\n", i))
-                                },
-                            }},
-                        None => {
-                            Self::errfun(&mut error_string, &format!("Missing edge weight attribute! (#{})\n", i))
-                        },
-                    };
+                    Each default node must have the following attributes/nodes:
+                    Attributes:
+                    - key (String)
+                    Nodes:
+                    - none but a default value must placed inside default node (String)
 
-                    // directed:
-                    let directed = match edge.attr("directed") {
-                        Some(value) => match value {
-                            "directed" => Some(GraphType::Directed),
-                            "undirected" => Some(GraphType::Undirected),
-                            _ => {
-                                // Invalid value in attribute!
-                                Self::errfun(&mut error_string, &format!("Invalid value for edge directed attribute! (#{})\n", i))
-                            },
-                        },
-                        None => match &edgedefault /* An immutable reference is used here otherwise a move is assumed! */ {
-                            Some(default) => Some(default.clone()),
+                    If any attribute is missing, node cannot be generated!
+                    */
+                    for (i, node) in graph_node
+                        .children()
+                        .filter(|n| n.name() == NODE_NAME)
+                        .enumerate()
+                    {
+                        // 4.2.1 id
+                        let id = match node.attr("id") {
+                            Some(id_value) if Self::unused_id(&node_ids, id_value) => {
+                                // Valid node id.
+                                node_ids.insert(id_value); // update node id set
+                                Some(id_value)
+                            }
+                            Some(id_value) => {
+                                // Multiple used id.
+                                Self::errfun(
+                                    &mut error_string,
+                                    &format!("Multiple used node id! (id:{})\n", id_value),
+                                )
+                            }
                             None => {
-                                // Attribute was not found!
-                                Self::errfun(&mut error_string, &format!("Neither default edge direction nor directed attribute found! (#{})\n", i))
+                                Self::errfun(&mut error_string, &format!("Missing node id! (#{})\n", i))
+                            }
+                        };
+
+                        // 4.2.2 Determine whether id is valid and collect all keys to finally have all information to create a tuple in nodes vector:
+                        if let Some(id_value) = id {
+                            // It is not forced that a node must have keys and default value, so this could also be done here first:
+                            // 4.2.2.1 Collects all data elements the node might have.
+                            let datas_node = Self::create_data_list(node, id.unwrap());
+
+                            // 4.2.2.2 Check all keys that affect nodes or all elements: (ref keyword is necessary to avoid a move and use a reference binding instead; matches!-macro is useful to make a comparison with enum values)
+                            let keys_node = Self::key_fusion(&keys_map, datas_node, |x| {
+                                (x == &KeyFor::All || x == &KeyFor::Node)
+                            }); // TODO: Gut testen, mögliche Fehlerquelle!
+
+                            // Increase counter:
+                            counter += 1;
+
+                            // 4.2.2.3 Here: All information are gathered to create new node:
+                            nodes.push((id_value.to_string(), keys_node, i));
+                        } else {
+                            return Err(Box::from(format!("Found node errors:\n{}", error_string)));
+                        }
+                    }
+
+                    // 4.2.3 Additional constraints to check:
+                    // - There must be at least two nodes
+                    if counter < 2 {
+                        return Err(Box::from(format!(
+                            "Found node errors:\nGraph must have at least two nodes!\n{}",
+                            error_string
+                        )));
+                    }
+                }
+
+                // 5. Edges:
+                {
+                    // 5.1 Needed temp variables:
+                    // Counter to determine how many nodes are created:
+                    let mut counter: usize = 0;
+                    // HashSet to detect edges with same id to ensure that no id is used more than once:
+                    let mut edge_ids: HashSet<&str> = HashSet::new();
+
+                    // 5.2 Needed closures:
+                    // Searches in all known nodes for the one with specified id (At this point: Its ensured that all node id's are unique)
+                    let node_ref = |src: &str| -> Option<usize> {
+                        nodes.iter().find_map(|(id, _, no)| {
+                            if *id == src {
+                                Some(*no)
+                            } else {
+                                None
+                            }
+                        })
+                    };
+
+                    /* 5.3 Iterates through all edge elements. Each edge element must have the following attributes/nodes:
+                    Attributes:
+                    - id (String)
+                    - directed (GraphType)
+                    - weight (u32)
+                    - source (String)
+                    - target (String)
+                    Nodes: (optional)
+                    - default
+
+                    Each default edge must have the following attributes/nodes:
+                    Attributes:
+                    - key (String)
+                    Nodes:
+                    - none but a default value must placed inside default node (String)
+
+                    If any attribute is missing, edge cannot be generated!
+                    */
+                    for (i, edge) in graph_node
+                        .children()
+                        .filter(|n| n.name() == EDGE_NAME)
+                        .enumerate()
+                    {
+                        // 5.3.1 id
+                        let id = match edge.attr("id") {
+                            Some(id_value) if Self::unused_id(&edge_ids, id_value) => {
+                                // Valid edge id.
+                                edge_ids.insert(id_value); // update edge set
+                                Some(id_value)}
+                            Some(id_value) => {
+                                // Id exists but is multiple used!
+                                Self::errfun(
+                                &mut error_string,
+                                &format!("Multiple used edge id! (id:{})\n", id_value),
+                            )},
+                            None => {
+                                // No id attribute was found!
+                                Self::errfun(
+                                &mut error_string,
+                                &format!("Missing edge id attribute! (#{})\n", i),
+                            )},
+                        };
+
+                        // 5.3.2 directed:
+                        // Uses the setting found in the edge attribute. If the attribute is not found global value is applied.
+                        // In any other cases: E.g. attribute not found; no global value defined: Throw exception!
+                        let directed = match edge.attr("directed") {
+                            Some(directed_value) => match directed_value {
+                                "directed" => Some(GraphType::Directed),
+                                "undirected" => Some(GraphType::Undirected),
+                                _ => {
+                                    // Invalid value in attribute!
+                                    Self::errfun(
+                                        &mut error_string,
+                                        &format!(
+                                            "Invalid value for edge directed attribute! (#{})\n",
+                                            i
+                                        ),
+                                    )
+                                }
                             },
+                            None => {
+                                match &edgedefault /* An immutable reference is used here otherwise a move is assumed! */ {
+                                    Some(default) => Some(default.clone()),
+                                    None => {
+                                        // Attribute was not found!
+                                        Self::errfun(&mut error_string, &format!("Neither default edge direction nor directed attribute found! (#{})\n", i))
+                                    },
+                                }
+                            }
+                        };
+
+                        // 5.3.3 weight:
+                        let weight = match edge.attr("weight") {
+                            Some(weight_value) => {
+                                let weight_parsed = weight_value.parse::<u32>(); // try to parse value into u32...
+                                // ... evaluate result:
+                                match weight_parsed {
+                                    Ok(val) => Some(val),
+                                    Err(_) => {
+                                        // Error occured during parsing so probably invalid value:
+                                        Self::errfun(
+                                        &mut error_string,
+                                        &format!("Invalid value for edge weight! (#{})\n", i),
+                                    )
+                                    },
+                                }
+                            }
+                            None => {
+                                // No attribute was found:
+                                Self::errfun(
+                                &mut error_string,
+                                &format!("Missing edge weight attribute! (#{})\n", i),
+                            )
+                            },
+                        };
+
+                        // 5.3.4 source:
+                        let source = match edge.attr("source") {
+                            Some(source_value) => {
+                                if let Some(reference) = node_ref(source_value) {
+                                    Some(reference) // valid reference
+                                } else {
+                                    // Undefined reference: Value in attribute could not mapped to a real node id!
+                                    Self::errfun(
+                                        &mut error_string,
+                                        &format!("Undefined source reference! (#{})\n", i),
+                                    )
+                                }
+                            }
+                            None => {
+                                // No attribute found!
+                                Self::errfun(
+                                    &mut error_string,
+                                    &format!("Missing edge source attribute! (#{})\n", i),
+                                )
+                            }
+                        };
+
+                        // 5.3.5 destination:
+                        let destination = match edge.attr("target") {
+                            Some(target_value) => {
+                                if let Some(reference) = node_ref(target_value) {
+                                    Some(reference) // valid reference
+                                } else {
+                                    // Undefined reference: Value in attribute could not mapped to a real node id!
+                                    Self::errfun(
+                                        &mut error_string,
+                                        &format!("Undefined target reference! (#{})\n", i),
+                                    )
+                                }
+                            }
+                            None => {
+                                // No attribute found!
+                                Self::errfun(
+                                    &mut error_string,
+                                    &format!("Missing edge target attribute! (#{})\n", i),
+                                )
+                            }
+                        };
+
+                        // 5.3.6 Perform validity check for all necessary variables to finally create edge tuple in vector:
+                        if id.is_some() && directed.is_some() && weight.is_some() && source.is_some() && destination.is_some() {
+                            // It is not forced that a node must have keys and default value, so this could also be done here first:
+                            // 5.3.6.1 Collects all data elements the edge might have and iterates through all data elements of the edge.
+                            let datas_edge = Self::create_data_list(edge, id.unwrap());
+
+                            // Increment edge counter:
+                            counter += 1;
+
+                            // 5.3.6.2 Check all keys that affect edges or all elements: (ref keyword is necessary to avoid a move and use a reference binding instead; matches!-macro is useful to make a comparison with enum values)
+                            let keys_edge = Self::key_fusion(&keys_map, datas_edge, |x| {
+                                (x == &KeyFor::All) | (x == &KeyFor::Edge)
+                            });
+
+                            // 5.3.6.3 Here: All information is available to create new edge:
+                            edges.push((
+                                id.unwrap().to_string(),
+                                weight.unwrap(),
+                                directed.unwrap(),
+                                source.unwrap(),
+                                destination.unwrap(),
+                                keys_edge,
+                            ));
+                        } else {
+                            return Err(Box::from(format!("Found edge errors:\n{}", error_string)));
                         }
-                    };
-
-                    // source:
-                    let source = match edge.attr("source") {
-                        Some(value ) => {
-                            if let Some(reference) = node_ref(value) {
-                                Some(reference)
-                            }
-                            else {
-                                // Undefined reference: Value in attribute could not mapped to a real node id!
-                                Self::errfun(&mut error_string, &format!("Undefined source reference! (#{})\n", i))
-                            }
-                        },
-                        None => {
-                            // No attribute found!
-                            Self::errfun(&mut error_string, &format!("Missing edge source attribute! (#{})\n", i))
-                        }
-                    };
-
-                    // destination:
-                    let destination = match edge.attr("target") {
-                        Some(value ) => {
-                            if let Some(reference) = node_ref(value) {
-                                Some(reference)
-                            }
-                            else {
-                                // Undefined reference: Value in attribute could not mapped to a real node id!
-                                Self::errfun(&mut error_string, &format!("Undefined target reference! (#{})\n", i))
-                            }
-                        },
-                        None => {
-                            // No attribute found!
-                            Self::errfun(&mut error_string, &format!("Missing edge target attribute! (#{})\n", i))
-                        }
-                    };
-
-                    //rel.push((source, destination));
-                    //graph.nodes = nodes;
-
-                    if id.is_some() && weight.is_some() && directed.is_some() && source.is_some() && destination.is_some() {
-                        // It is not forced that a node must have keys and default value, so this could also be done here first:
-                        // Collects all data elements the node might have and iterates through all data elements of the node.
-                        let datas = Self::create_data_list(edge, id.unwrap());
-
-                        counter += 1;
-
-                        // Check all keys that affect nodes or all elements: (ref keyword is necessary to avoid a move and use a reference binding instead; matches!-macro is useful to make a comparison with enum values)
-                        let keys = Self::key_fusion(&keys_map, datas, |x| (x == &KeyFor::All) | (x == &KeyFor::Edge));
-
-                        // Here: All information is available to create new edge:
-                        edges.push(Edge::new(id.unwrap().to_string(), weight.unwrap(), directed.unwrap(), &nodes[source.unwrap()], &nodes[destination.unwrap()], keys));
                     }
-                    else {
-                        return Err(Box::from(format!("Found edge errors:\n{}", error_string)));
+
+                    // 5.3.7 Additional constraints to check:
+                    // - There must be at least one edge (at this point all edges are valid and therefore their node references too!)
+                    if counter == 0 {
+                        return Err(Box::from(format!(
+                            "Found node errors:\nGraph must have at least one edge!\n{}",
+                            error_string
+                        )));
                     }
                 }
 
-                //graph.nodes = nodes;
-                //graph.edges = edges;
+                // 6. Graph object:
+                // 6.1 Select keys that affect graph object: (for better readability create_data_list was passed here as parameter (and to avoid name conflicts with following variables)
+                let keys_graph =
+                    Self::key_fusion(&keys_map, Self::create_data_list(&graph_node, GRAPH_NAME), |x| {
+                        (x == &KeyFor::All) || (x == &KeyFor::Graph)
+                    });
 
-
-                let mut graph2 = Box::from(Graph::new(format!("test"), nodes.clone(), edges.clone(), Box::from(keys_graph.clone())));
-                return Ok(graph2);
-
-                // Additional constraints to check:
-                // - There must be at least one edge
-                if counter == 0 {
-                    return Err(Box::from(format!("Found node errors:\nGraph must have at least one edge!\n{}", error_string)));
-                }
-            }
-
-
-
-            if graphid.is_some() {
-                //graph.edges = edges;
-                // Here: All information is available to create new graph:
-                //return Ok(graph);
-                return Ok(Box::from(Graph::new(format!("test"), Box::from(Vec::new()), Box::from(Vec::new()), Box::from(Vec::new()))));
-                //return Ok(Box::from(Graph::new(format!("test"), nodes.clone(), Box::from(Vec::new()), Box::from(Vec::new()))));
+                // 6.2 Call graph constructor and return object:
+                return Ok(Graph::new(
+                    graphid.unwrap().to_string(),
+                    nodes,
+                    edges,
+                    keys_graph,
+                ));
             }
             else {
-                return Err(Box::from(format!("Found graph errors:\nGraph must have an id!\n{}", error_string)));
+                // No "graph" node was found!
+                return  Err(Box::from("No graph element was found!\n".to_string()));
             }
-        }
-        else {
-            // No root element was found -> throw exception!
+        } else {
+            // No root element was found!
             return Err(Box::from("No root graphml-node was found!\n".to_string()));
         }
     }

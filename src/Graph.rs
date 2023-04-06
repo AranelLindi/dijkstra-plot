@@ -7,15 +7,16 @@ pub mod node;
 
 pub use crate::Graph::node::Node;
 pub use crate::Graph::edge::Edge;
+use crate::Graph::graph_type::graph_enum::GraphType;
 pub use crate::Graph::key::Key;
 pub use crate::Graph::igraph_object::IgraphObject;
 
 //#[derive(Hash)]
 pub struct Graph<'a> {
     id: String, /* 'id: str<'a>' alternative syntax (if it were not a reference to str). Equivalent to 'id: &'a str'. Useful syntax if no reference is needed but a lifetime ! */
-    pub nodes: Box<Vec<Node>>, // TODO: Not sure if it is correct. Nodes must live until as long as edges need reference on them which is 'b lifetime... node need only lifetime for id (str) and 'b is given them according to above syntax rule (if compiler accepts)
-    pub edges: Box<Vec<Edge<'a>>>,
-    keys: Box<Vec<Key>>,
+    pub nodes: Vec<Node>, // TODO: Not sure if it is correct. Nodes must live until as long as edges need reference on them which is 'b lifetime... node need only lifetime for id (str) and 'b is given them according to above syntax rule (if compiler accepts)
+    pub edges: Vec<Edge<'a>>,
+    keys: Vec<Key>,
     pub node_len: usize,
     pub edge_len: usize
     //marker: std::marker::PhantomData<&'a &'b()>
@@ -23,7 +24,7 @@ pub struct Graph<'a> {
 
 impl<'a> Graph<'a> {
     // Constructor
-    pub fn new(id: String, nodes: Box<Vec<Node>>, edges: Box<Vec<Edge<'a>>>, keys: Box<Vec<Key>>) -> Self {
+    pub fn new(id: String, nodes_info: Vec<(String, Vec<Key>, usize)>, edges_info: Vec<(String, u32, GraphType, usize, usize, Vec<Key>)>, keys: Vec<Key>) -> Result<Self, String> {
         // Necessary to store it here because by initiate Self nodes and edges are moved and there is no access to len() anymore
         let node_len =  nodes.len();
         let edge_len = edges.len();
