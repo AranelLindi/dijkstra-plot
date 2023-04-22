@@ -97,7 +97,7 @@ impl<'a> GraphOutput<'a> {
             // Find out if current node is part of dijkstra path:
             let marked: bool = {
                 if let Some(paths) = dijkstra_information {
-                    if let Some(_) = paths.iter().find(|&x| x.owner == ref_node) {
+                    if let Some(_) = paths.iter().find(|&x| x.owner.no() == ref_node.no()) {
                         true
                     } else {
                         false
@@ -141,9 +141,9 @@ impl<'a> GraphOutput<'a> {
             // TODO: Test if this code works as well! -> Seems so!
             let marked = dijkstra_information.map_or(false, |paths| {
                 paths.iter().any(|path| {
-                    if let Some(prev) = path.prev {
+                    if let Some(prev) = path.prev.clone() {
                         // Remember: Edge could also be reversed! So check in both directions as well!
-                        match (path.owner == edge.source(), prev == edge.dest(), path.owner == edge.dest(), prev == edge.source()) {
+                        match (path.owner == edge.source().as_ref(), prev == edge.dest().as_ref(), path.owner == edge.dest().as_ref(), prev == edge.source().as_ref()) {
                             (true, true, _, _) | (_, _, true, true) => true, // Check for each DijkstraHeapEle if it is connected to the nodes the current edge is connected to also. Because it is excluded that there is more than one connection between to nodes it MUST be the current edge!
                             _ => false,
                         }

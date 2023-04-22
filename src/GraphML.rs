@@ -3,6 +3,7 @@ extern crate minidom;
 use std::collections::HashSet;
 use minidom::Element;
 use std::fs;
+use std::rc::Rc;
 
 use crate::Graph::graph_type::graph_enum::GraphType;
 use crate::Graph::key_type::key_enum::KeyType;
@@ -19,7 +20,7 @@ pub mod key_for {
     }
 }
 
-struct GraphML<'a> {
+pub struct GraphML<'a> {
     marker: std::marker::PhantomData<&'a ()>,
 }
 
@@ -43,22 +44,26 @@ impl<'a> GraphML<'a> {
     }
 
     // Creates a vector with all data values the graph element has. (E.g. <ele><data key="xyz">[value]</key>...</ele>)
-    fn create_data_list(ele: &Element, id_str: &str) -> Vec<(String, String)> {
+    fn create_data_list(ele: &Element, id_str: &str) -> Vec<(&'a str, &'a str)> {
         // Vector of found (key_id, key_value):
-        let mut datas: Vec<(String, String)> = Vec::new();
+        let mut datas: Vec<(&'a str, &'a str)> = Vec::new();
 
-        // Iterates through all data node the element has:
+        // Iterates through all data nodes the element has:
         for data in ele.children().filter(|&n| n.name() == DATA_NAME) {
             let key = data.attr("key");
 
             match key {
                 Some(key_value) if key_value != "" => {
-                    // key exists and is valid
-                    let value = data.text();
-                    datas.push((key_value.parse().unwrap(), value))
+                    // key exists and is valid!
+
+                    // &str slice is boxed to have a longer lifetime then just function scope!
+                    let id = Box::leak(id_str.to_string().into_boxed_str()) as &'a str;
+                    let value = Box::leak(key_value.to_string().into_boxed_str()) as &'a str;
+
+                    datas.push((id, value))
                 }
                 Some(_) => {
-                    // key exists but is empty
+                    // key exists but is empty!
                     println!("Missing key id! ({})", id_str);
                     continue;
                 }
@@ -80,7 +85,7 @@ impl<'a> GraphML<'a> {
     }
 
     // This function uses all key definitions (keys_map), checks if they are valid for the current object type (expr) and/or if there is a value that overwrites the default value (datas)
-    fn key_fusion(keys_map: &Vec<(Key, KeyFor)>, datas: Vec<(String, String)>, expr: impl Fn(&KeyFor) -> bool) -> Vec<Key> {
+    fn key_fusion(keys_map: &Vec<(Key<'a>, KeyFor)>, datas: Vec<(&'a str, &'a str)>, expr: impl Fn(&KeyFor) -> bool) -> Vec<Key<'a>> {
         // Will contain all keys that affect the current object:
         let mut keys: Vec<Key> = Vec::new();
 
@@ -88,16 +93,16 @@ impl<'a> GraphML<'a> {
         for (_, &(ref key, _)) in keys_map
             .iter()
             .enumerate()
-            .filter(|&(_, &(_, ref fortype))| matches!(fortype, _x if expr(fortype)))
+            .filter(|&(_, &(_, ref for_type))| matches!(for_type, _x if expr(for_type)))
         {
-            // TODO: Gut testen, mögliche Fehlerquelle!
+            // Copy! Otherwise is a move assumed but it must be part of keys_map.
             let mut key_cpy = key.clone();
 
             // For each key that affects the current object, the data elements found are checked to see if there is a value that overrides the default value
             for (id, value) in datas.iter() {
                 if *id == key.id {
                     // New value was found - replace!
-                    key_cpy.value = value.clone();
+                    key_cpy.default = value.clone();
                     break; // because key id must be unique through whole document (at this point ensured), search for further elements in datas is trivial!
                 }
             }
@@ -110,25 +115,25 @@ impl<'a> GraphML<'a> {
     }
 
     // Creates a graph object out of file path to GraphML (XML)-file.
-    pub fn create_graph(graphml_path: String) -> Result<Result<Graph<'a>, String>, Box<String>> {
+    pub fn create_graph(graphml_path: String) -> Result<Graph<'a>, Box<String>> {
         // Contains error messages. (String could be very big therefore put it on heap):
         let mut error_string: Box<String> = Box::new(String::new());
 
         // Contains XML document (respective GraphML):
-        let xdoc: Element = {
+        let xdoc = {
             // Open GraphML file:
             let file = fs::read_to_string(&graphml_path);
             // Parse file into String:
             let xml = file.unwrap_or_else(|_| String::new());
             // Parse String into XML element:
-            xml.parse().unwrap()
+            xml.parse()//.unwrap()
         };
-        // Ordering of elements in GraphML file: keys -> nodes -> edges
+        // (Ordering of elements in GraphML file: keys -> nodes -> edges)
 
         // 1. Check first if theres a graphml-root-node:
         if xdoc.name().to_lowercase() == ROOT_NAME {
-            // 2. Keys.
 
+            // 2. Keys.
             // Will contain all key definitions and which elements they are affecting:
             let mut keys_map: Vec<(Key, KeyFor)> = Vec::new();
 
@@ -157,8 +162,12 @@ impl<'a> GraphML<'a> {
                     let id = match key.attr("id") {
                         Some(id_value) if Self::unused_id(&keyid, id_value) => {
                             // Valid id!
-                            keyid.insert(id_value); // update id set
-                            Some(id_value)
+
+                            // Box the &str to make sure it does live as long as the lifetime parameter 'a lives.
+                            let value = Box::leak(id_value.to_string().into_boxed_str()) as &'a str;
+
+                            keyid.insert(value); // update id set
+                            Some(value)
                         }
                         Some(id_value) => {
                             // Id exists but is used twice!
@@ -193,7 +202,10 @@ impl<'a> GraphML<'a> {
 
                     // 2.2.3 attr.name
                     let attrname = match key.attr("attr.name") {
-                        Some(attrname_value) => Some(attrname_value),
+                        Some(attrname_value) => {
+                            // Box the &str to make sure that it lives as long as 'a lifetime parameter lives.
+                            let value = Box::leak(attrname_value.to_string().into_boxed_str()) as &'a str;
+                            Some(value)},
                         None => Self::errfun(
                             &mut error_string,
                             &format!("No attr.name defined! (#{})\n", i),
@@ -222,7 +234,10 @@ impl<'a> GraphML<'a> {
 
                     // 2.2.5 value (A default value must be defined! Otherwise must be secured that each element which implements that key has an own value for it (which is to complicated))
                     let value = match key.get_child("default", "") /* TODO: Might be that "" as namespace didn't work as expected! */ {
-                        Some(default_node) => Some(default_node.text()) /* inner text of node */,
+                        Some(default_node) => {
+                            // Box the &str to make sure that it lives as long as 'a lifetime parameter lives.
+                            let value = Box::leak(default_node.text().into_boxed_str()) as &'a str;
+                            Some(value) /* inner text of node */},
                         None => {
                             Self::errfun(&mut error_string, &format!("Missing default value! (#{})\n", i))
                         }
@@ -235,10 +250,10 @@ impl<'a> GraphML<'a> {
                     if id.is_some() && attrfor.is_some() && attrname.is_some() && attrtype.is_some() && value.is_some() {
                         keys_map.push((
                             Key {
-                                id: id.unwrap().to_string(),
-                                attrname: attrname.unwrap().to_string(),
+                                id: id.unwrap(), /* if there occurs an error then maybe because the string isn't copied! Try .clone() then! */
+                                attrname: attrname.unwrap(),
                                 attrtype: attrtype.unwrap(),
-                                value: value.unwrap(),
+                                default: value.unwrap(),
                             },
                             attrfor.unwrap(),
                         ));
@@ -248,16 +263,19 @@ impl<'a> GraphML<'a> {
                 }
             }
 
-            // 3. Graph-Node:
+            // 3. Graph (node).
             // Following variables will contain all information which is necessary to create both Node and Edge objects (needed until end of function!):
-            let mut nodes: Vec<(String, Vec<Key>, usize)> = Vec::new(); // vector tuple: ([id], Vec[keys], [no])
-            let mut edges: Vec<(String, u32, GraphType, usize, usize, Vec<Key>)> = Vec::new(); // vector tuple: ([id], [weight], [directed], [source node number], [target node number], Vec[keys])
+            let mut nodes: Vec<(&'a str, Vec<Key>, usize)> = Vec::new(); // vector tuple: ([id], Vec[keys], [no])
+            let mut edges: Vec<(&'a str, u32, GraphType, usize, usize, Vec<Key>)> = Vec::new(); // vector tuple: ([id], [weight], [directed], [source node number], [target node number], Vec[keys])
 
-            // 3.1 Switch to graph node (there must be only exactly one graph node):
+            // 3.1 Switch to graph node (there must be only exactly one graph node (first one found is selected!)):
             if let Some(graph_node) = xdoc.children().find(|n| n.name() == GRAPH_NAME) {
                 // 3.1.1 Graph Id has a special meaning: Because it must already be specified in the constructor, its validity must be checked here!
-                let graphid = match xdoc.attr("id") {
-                    Some(graphid_value) => Some(graphid_value) /* graph id is always unique because application supports only one graph node */,
+                let graphid = match graph_node.attr("id") {
+                    Some(graphid_value) => {
+                        // Box the &str to make sure it lives as long as lifetime parameter 'a lives.
+                        let value = Box::leak(graphid_value.to_string().into_boxed_str()) as &'a str;
+                        Some(value) /* graph id is always unique because application supports only one graph node */},
                     None => Self::errfun(&mut error_string, &format!("Missing graph id attribute!\n")),
                 };
                 if let None = graphid {
@@ -267,7 +285,7 @@ impl<'a> GraphML<'a> {
 
                 // 3.1.2 Determine whether theres a global instruction about edges direction
                 // It is not forced to define that globally! So its not necessary to produce a error message if it fails!
-                let edgedefault = match xdoc.attr("edgedefault") {
+                let edgedefault = match graph_node.attr("edgedefault") {
                     Some(edgedefault_value) => match edgedefault_value {
                         "directed" => Some(GraphType::Directed),
                         "undirected" => Some(GraphType::Undirected),
@@ -307,8 +325,12 @@ impl<'a> GraphML<'a> {
                         let id = match node.attr("id") {
                             Some(id_value) if Self::unused_id(&node_ids, id_value) => {
                                 // Valid node id.
-                                node_ids.insert(id_value); // update node id set
-                                Some(id_value)
+
+                                // Box &str to make sure it does live as long as lifetime parameter 'a lives.
+                                let value = Box::leak(id_value.to_string().into_boxed_str()) as &'a str;
+
+                                node_ids.insert(id_value); // update node id set (must not be same lifetime!)
+                                Some(value)
                             }
                             Some(id_value) => {
                                 // Multiple used id.
@@ -326,7 +348,7 @@ impl<'a> GraphML<'a> {
                         if let Some(id_value) = id {
                             // It is not forced that a node must have keys and default value, so this could also be done here first:
                             // 4.2.2.1 Collects all data elements the node might have.
-                            let datas_node = Self::create_data_list(node, id.unwrap());
+                            let datas_node = Self::create_data_list(node, id_value);
 
                             // 4.2.2.2 Check all keys that affect nodes or all elements: (ref keyword is necessary to avoid a move and use a reference binding instead; matches!-macro is useful to make a comparison with enum values)
                             let keys_node = Self::key_fusion(&keys_map, datas_node, |x| {
@@ -337,7 +359,7 @@ impl<'a> GraphML<'a> {
                             counter += 1;
 
                             // 4.2.2.3 Here: All information are gathered to create new node:
-                            nodes.push((id_value.to_string(), keys_node, i));
+                            nodes.push((id_value, keys_node, i));
                         } else {
                             return Err(Box::from(format!("Found node errors:\n{}", error_string)));
                         }
@@ -400,8 +422,11 @@ impl<'a> GraphML<'a> {
                         let id = match edge.attr("id") {
                             Some(id_value) if Self::unused_id(&edge_ids, id_value) => {
                                 // Valid edge id.
-                                edge_ids.insert(id_value); // update edge set
-                                Some(id_value)}
+                                // Box &str to make sure it does live as long as lifetime parameter 'a lives.
+                                let value = Box::leak(id_value.to_string().into_boxed_str()) as &'a str;
+
+                                edge_ids.insert(id_value); // update edge set (must not be same lifetime!)
+                                Some(value)}
                             Some(id_value) => {
                                 // Id exists but is multiple used!
                                 Self::errfun(
@@ -448,7 +473,7 @@ impl<'a> GraphML<'a> {
                         // 5.3.3 weight:
                         let weight = match edge.attr("weight") {
                             Some(weight_value) => {
-                                let weight_parsed = weight_value.parse::<u32>(); // try to parse value into u32...
+                                let weight_parsed = weight_value.parse::<u32>(); // try to parse value into u32... (TURBOFISH!)
                                 // ... evaluate result:
                                 match weight_parsed {
                                     Ok(val) => Some(val),
@@ -530,7 +555,7 @@ impl<'a> GraphML<'a> {
 
                             // 5.3.6.3 Here: All information is available to create new edge:
                             edges.push((
-                                id.unwrap().to_string(),
+                                id.unwrap(),
                                 weight.unwrap(),
                                 directed.unwrap(),
                                 source.unwrap(),
@@ -559,11 +584,32 @@ impl<'a> GraphML<'a> {
                         (x == &KeyFor::All) || (x == &KeyFor::Graph)
                     });
 
-                // 6.2 Call graph constructor and return object:
+
+                // 6.2 Create SmartPointer objects for nodes and edges.
+                let rc_nodes: Vec<Rc<Node>> = nodes
+                    .into_iter()
+                    .map(|n| {
+                        let (id, keys, no) = n;
+                        Rc::new(Node::new(id, keys, no))
+                    })
+                    .collect();
+
+                let rc_edges: Vec<Rc<Edge>> = edges
+                    .into_iter()
+                    .map(|n| {
+                        let (id, weight, etype, src_no, dst_no, keys) = n;
+                        Rc::new(Edge::new(id, weight, etype, Rc::clone(&rc_nodes[src_no]), Rc::clone(&rc_nodes[dst_no]), keys))
+                    })
+                    .collect();
+
+
+                // 6.3 Call graph constructor and return object:
+
+
                 return Ok(Graph::new(
-                    graphid.unwrap().to_string(),
-                    nodes,
-                    edges,
+                    graphid.unwrap(),
+                    rc_nodes,
+                    rc_edges,
                     keys_graph,
                 ));
             }

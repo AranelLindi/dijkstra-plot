@@ -17,6 +17,8 @@ use std::io::Write; // used for command line output
 //use std::path::PathBuf;
 //use std::process::Command;
 use std::env;
+use std::rc::Rc;
+use crate::Graph::IgraphObject;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -56,13 +58,47 @@ fn main() {
 
         // Destination node
         if arg.starts_with("-dest=") {
-            start = &arg[6..];
+            dest = &arg[6..];
         } // If no argument was passed then perform dijkstra algorithm for whole graph (otherwise until dest node was reached)
     }
     // TODO: std::process::exit(1) bedeutet, dass das Programm mit einem Fehler beendet wurde. Dieses also bei ungültigen Parametern etc. zurückgeben. Das Bash Skript fängt das auf und kann dann entscheiden ob weiter gemacht werden soll
 
+    let graph_container = GraphML::GraphML::create_graph("/home/aranel/Dokumente/Code/dijkstra-plot/testgraph.xml".to_string());// input.to_string());
 
-    let mut nodes: Vec<Node> = Vec::new();
+    // iterate through all nodes to search for the node with the given id.
+/*    let get_ref = |id: &str, nodes: &Vec<Rc<Node>>| -> Option<&Node> {
+        nodes.iter().find(|n| n.get_id() == id).map(|n| n.as_ref())
+    };*/
+
+
+    match graph_container {
+        Ok(graph) => {
+
+            // Start node must always be given!
+/*            let start_node = get_ref(start, &graph.nodes);
+            if let None = start_node {
+                println!("Start node is not matchable to any node in the graphml document!");
+                std::process::exit(1);
+            }
+
+            // Destination node is optional. As long as an id was entered it must match to a node. Otherwise dijkstra algorithm is performed on whole graph.
+            let dest_node = get_ref(dest, &graph.nodes);*/
+
+
+            let dgraph = Dijkstra::Dijkstra::run(&graph, graph.nodes[0].as_ref(), None);
+
+
+            let test1 = GraphPositioning::GraphOptimization::run(&graph, graph.nodes[0].as_ref());
+
+            GraphOutput::GraphOutput::write2File("Graph.dat".to_string(), &graph,&test1,Some(&dgraph));
+        },
+        Err(err) => {
+            println!("{}", err);
+            std::process::exit(1);
+        },
+    }
+
+/*    let mut nodes: Vec<Node> = Vec::new();
     let mut edges: Vec<Edge> = Vec::new();
 
     nodes.push(Node::new("A".to_string(), Vec::new(), 0));
@@ -92,17 +128,20 @@ fn main() {
     edges.push(Edge::new("e11".to_string(), 6, Undirected, &nodes[4], &nodes[7], Vec::new()));
     edges.push(Edge::new("e12".to_string(), 4, Undirected, &nodes[5], &nodes[6], Vec::new()));
     edges.push(Edge::new("e13".to_string(), 3, Undirected, &nodes[3], &nodes[9], Vec::new()));
+*/
 
+    //let graph_result = Graph::Graph::new2("graph1".to_string(), nodes.clone(), edges.clone(), Vec::new());
 
-    let graph = Graph::Graph::new("graph1".to_string(), Box::from(nodes.clone()), Box::from(edges.clone()), Box::from(Vec::new()));
+/*    if let Ok(graph) = graph_result {
+        let result = Dijkstra::Dijkstra::run(&graph, &nodes[0]);
 
-    let result = Dijkstra::Dijkstra::run(&graph, &nodes[0]);
+        let opt = GraphPositioning::GraphOptimization::run(&graph, &nodes[0]);
 
-    let opt = GraphPositioning::GraphOptimization::run(&graph, &nodes[0]);
-
-    GraphOutput::GraphOutput::write2File("Graph.dat".to_string(), &graph, &opt, Option::Some(&result));
-
-
+        GraphOutput::GraphOutput::write2File("Graph.dat".to_string(), &graph, &opt, Option::Some(&result));
+    }
+    else {
+        println!("Error occured, Graph was not Ok!\n");
+    }*/
 // (Everything works in this comment)
 /*    println!("{}", Constants::INTRO);
     print!("   GraphML-filepath: ");

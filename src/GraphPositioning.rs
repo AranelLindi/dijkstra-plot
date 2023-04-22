@@ -112,7 +112,7 @@ impl<'a> GraphOptimization<'a> {
         };
 
         for (_, e) in graph.nodes.iter().enumerate() /* O(n) */ {
-            if e == start {
+            if e.no() == start.no() {
                 // Start node shall be in center of graphical representation.
                 positions.push(NodePos::new(start.no(), 0.0, 0.0, 0.0, 0.0));
             } else {

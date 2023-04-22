@@ -1,10 +1,10 @@
 use crate::Graph::key_type::key_enum::KeyType;
 
 #[derive(PartialEq, Eq, Clone, Hash)]
-pub struct Key {
-    pub id: String,
-    pub attrname: String,
+pub struct Key<'a> {
+    pub id: &'a str,
+    pub attrname: &'a str,
     pub attrtype: KeyType,
-    pub value: String, // TODO: Better name would be "default" to better correspond to default graphml node
+    pub default: &'a str,
     //marker: std::marker::PhantomData<&'a &'b()>
 }
