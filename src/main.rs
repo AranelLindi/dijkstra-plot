@@ -63,7 +63,7 @@ fn main() {
     }
     // TODO: std::process::exit(1) bedeutet, dass das Programm mit einem Fehler beendet wurde. Dieses also bei ungültigen Parametern etc. zurückgeben. Das Bash Skript fängt das auf und kann dann entscheiden ob weiter gemacht werden soll
 
-    let graph_container = GraphML::GraphML::create_graph("/home/aranel/Dokumente/Code/dijkstra-plot/testgraph.xml".to_string());// input.to_string());
+    let graph_container = GraphML::GraphML::create_graph("/home/aranel/Dokumente/Code/dijkstra-plot/test.xml".to_string());// input.to_string());
 
     // iterate through all nodes to search for the node with the given id.
 /*    let get_ref = |id: &str, nodes: &Vec<Rc<Node>>| -> Option<&Node> {

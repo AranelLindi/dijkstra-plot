@@ -1,9 +1,17 @@
-extern crate minidom;
+use xml::reader::{EventReader, XmlEvent};
+
+use std::io::BufRead;
 
 use std::collections::HashSet;
-use minidom::Element;
-use std::fs;
+//use minidom::Element;
+use std::fs::{File, read_to_string};
+use std::io::BufReader;
 use std::rc::Rc;
+use xml::attribute::OwnedAttribute;
+use xml::name::OwnedName;
+
+//use quick_xml::events::Event;
+//use quick_xml::reader::Reader;
 
 use crate::Graph::graph_type::graph_enum::GraphType;
 use crate::Graph::key_type::key_enum::KeyType;
@@ -32,6 +40,17 @@ const EDGE_NAME: &str = "edge";
 const DATA_NAME: &str = "data";
 const KEY_NAME: &str = "key";
 // TODO: Hier alle Strings definieren! Spart Speicherplatz!
+
+
+#[derive(PartialEq)]
+enum GraphMLDocStatus {
+    Null,
+    RootNode,
+    KeyNode,
+    GraphNode,
+    NodeNode,
+    EdgeNode
+}
 
 impl<'a> GraphML<'a> {
     // Checks if passed id is already part of a set (and therefore already used).
@@ -119,15 +138,212 @@ impl<'a> GraphML<'a> {
         // Contains error messages. (String could be very big therefore put it on heap):
         let mut error_string: Box<String> = Box::new(String::new());
 
-        // Contains XML document (respective GraphML):
-        let xdoc = {
-            // Open GraphML file:
-            let file = fs::read_to_string(&graphml_path);
-            // Parse file into String:
-            let xml = file.unwrap_or_else(|_| String::new());
-            // Parse String into XML element:
-            xml.parse()//.unwrap()
-        };
+        let mut status = GraphMLDocStatus::Null;
+
+        let mut xml_reader = EventReader::from_str(&*graphml_path);
+
+        let mut keys: Vec<Key> = Vec::new();
+
+        for event in xml_reader {
+            match event {
+                Ok(obj) => {
+                    match obj {
+                        XmlEvent::StartDocument { .. } => {}
+                        XmlEvent::EndDocument => {}
+                        XmlEvent::ProcessingInstruction { .. } => {}
+                        XmlEvent::StartElement { name, attributes, .. } => {
+                            match name.local_name.to_lowercase().as_str() {
+                                "graphml" => {
+                                    if status == GraphMLDocStatus::Null { // sicher
+                                        status = GraphMLDocStatus::RootNode;
+                                        // Placeholder: No attributes are needed here but necessary to guarantee correct sequence
+                                    }
+                                    else {
+                                        // Error! Root Node must be first node in document!
+                                    }
+
+                                },
+                                "key" => {
+                                    if status == GraphMLDocStatus::KeyNode || status == GraphMLDocStatus::RootNode { // nicht so ganz sicher (muss key hier echt nicht dabei sein?)
+                                        status = GraphMLDocStatus::KeyNode;
+
+                                        let mut attr_id: Option<String> = Option::None;
+                                        let mut attr_for: Option<String> = Option::None;
+                                        let mut attr_name: Option<String> = Option::None;
+                                        let mut attr_type: Option<KeyType> = Option::None;
+                                        let mut default: Option<String> = Option::None;
+
+
+                                        // Unpack key element:
+                                        // 1. Attributes:
+                                        for attribute in attributes {
+                                            match attribute.name.local_name.to_lowercase().as_str() {
+                                                "id" => {
+                                                    attr_id = Option::Some(attribute.value.to_lowercase())
+                                                },
+                                                "for" => {
+                                                    match attribute.value.to_lowercase().as_str() {
+                                                        "all" | "node" | "edge" => {
+                                                            attr_for = Option::Some(attribute.value.to_lowercase())
+                                                        },
+                                                        _ => {
+                                                            // Error! Invalid value!
+                                                        }
+                                                    }
+                                                },
+                                                "attr.name" => {
+                                                    attr_name = Option::Some(attribute.value.to_lowercase())
+                                                },
+                                                "attr.type" => {
+                                                    match attribute.value.to_lowercase().as_str() {
+                                                        "boolean" => {
+                                                            attr_type = Option::Some(KeyType::Boolean);
+                                                        },
+                                                        "int" => {
+                                                            attr_type = Option::Some(KeyType::Int)
+                                                        },
+                                                        "long" => {
+                                                            attr_type = Option::Some(KeyType::Long)
+                                                        },
+                                                        "float" => {
+                                                            attr_type = Option::Some(KeyType::Float)
+                                                        },
+                                                        "double" => {
+                                                            attr_type = Option::Some(KeyType::Double)
+                                                        },
+                                                        "string" => {
+                                                            attr_type = Option::Some(KeyType::String)
+                                                        },
+                                                        _ => {
+                                                            // Error! Invalid value
+                                                        }
+                                                    }
+                                                },
+                                                _ => { continue; /* Actually it isn't allowed to have non-graphml attributes but I make an exception here */ }
+                                            }
+                                        }
+
+                                        // Optional: child node with default value!
+                                        let mut has_default = false;
+
+                                        if let Ok(event) = xml_reader.next() {
+                                            match event {
+                                                XmlEvent::StartElement { name, .. } => {
+                                                    match name.local_name.to_lowercase().as_str() {
+                                                        "default" => {
+                                                            has_default = true;
+                                                        },
+                                                        _ => {
+                                                            // Error! Invalid node name
+                                                        }
+                                                    }
+                                                },
+                                                XmlEvent::Characters(text) => {
+                                                    if has_default {
+                                                        default = Some(text);
+                                                    }
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+
+                                        // All information gathered at this point!
+
+                                        // Check if variables are filled with valid information
+                                        if !(attr_id == Option::None && attr_for == Option::None && attr_name == Option::None && attr_type == Option::None) {
+                                            // Valid object
+                                            let mut key: Key;
+
+                                            // TODO: Stopped here! Need to assign the values (like attr_id) to the members of the Key object and then add it (with keys.push()) to the vector. After that continue code the other nodes
+                                        }
+                                    }
+                                    else {
+                                        // Error! Wrong sequence! Key node was detected in invalid order!
+                                    }
+
+                                },
+                                "graph" => {
+                                    //key_processed = true; // for the case no keys were defined its necessary to assign the variable here to make sure that the rest of the document can be read in
+
+                                    if status == GraphMLDocStatus::RootNode || status == GraphMLDocStatus::KeyNode { // nicht so ganz sicher
+                                        status = GraphMLDocStatus::GraphNode;
+
+                                        // Attribute lesen
+                                    }
+                                    else {
+                                        // Error!
+                                    }
+                                },
+                                "node" => {
+                                    if status == GraphMLDocStatus::NodeNode || status == GraphMLDocStatus::GraphNode {
+
+                                    }
+                                    else {
+                                        // Error!
+                                    }
+                                },
+                                "edge" => {
+                                    //node_processed = true; // from now on node-nodes aren't allowed anymore
+                                    //edge_processed = true; // from now on only edge-nodes are allowed
+
+                                    if status == GraphMLDocStatus::EdgeNode || status == GraphMLDocStatus::NodeNode {
+
+                                    }
+                                    else {
+                                        // Error!
+                                    }
+                                },
+                                _ => {
+                                    // Unspecified node name -> Error!
+                                }
+                            }
+                        }
+                        XmlEvent::EndElement { name } => {
+                            match name.local_name.to_lowercase().as_str() {
+                                "graphml" => { break; },
+                                _ => {}
+                            }
+                        }
+                        XmlEvent::CData(_) => {}
+                        XmlEvent::Comment(_) => {}
+                        XmlEvent::Characters(_) => {}
+                        XmlEvent::Whitespace(_) => {}
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+
+        let mut txt = Vec::new();
+        let mut buf = Vec::new();
+
+        if let Some(graph)
+
+
+        let mut reader = from_str(read_to_string(graphml_path).ex)
+        reader.trim_text(true);
+
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                Ok(Event::Eof) => break,
+                Ok(Event::Start(e)) => {
+
+
+                    // https://github.com/tafia/quick-xml
+                    // https://crates.io/crates/quick-xml
+
+                    match e.name().as_ref() {
+
+                    }
+                }
+            }
+        }
+
+
+
+
         // (Ordering of elements in GraphML file: keys -> nodes -> edges)
 
         // 1. Check first if theres a graphml-root-node:

@@ -9,6 +9,5 @@ description = "Executes Dijstra-Algorithm on A GraphML-based graph and prints re
 
 # Simply list needed crates with version here and run $ cargo build in main directory to build (and download) crates/project
 [dependencies]
-minidom = "0.15.1" # XML support
+xml = "0.8.10"
 rand = "0.8.5" # Random numbers
-#cpython = "0.7.1"

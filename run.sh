@@ -27,7 +27,7 @@ if [ -z "$input_path" ] || ! [ -e "$(pwd)/$input_path" ]; then # Checks if input
 	exit 1
 fi
 if [ -z "$output_path" ]; then # Checks only if output path is empty and assigns them a default value instead
-  output_path="Plot.png" # Important: no spaces between expression are allowed! (e.g. input_path = "Graph.xml") otherwise each construct is interpreted as an command!
+  output_path="Plot.png" # Important: no spaces between expression are allowed! (e.g. input_path = "Graph.xml") otherwise each construct is interpreted as a command!
 fi
 
 # At this point: All information are valid!
