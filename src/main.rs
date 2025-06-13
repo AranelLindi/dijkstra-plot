@@ -4,122 +4,180 @@ mod GraphML;
 mod GraphOutput;
 mod GraphPositioning;
 
-// Own objects.
-use Graph::node::Node;
-use Graph::edge::Edge;
-use Graph::graph_type::graph_enum::GraphType::{Undirected, Directed};
-
-//use Dijkstra::Dijkstra as Dijkstra;
-//use GraphOutput::GraphOutput;
-
 // Standard library.
 use std::io::Write; // used for command line output
-//use std::path::PathBuf;
-//use std::process::Command;
-use std::env;
+use std::env; // environment - to get current path
+use std::fs; // file system manipulation
+
+use minidom::Element; // xml parser
+
+// Own objects.
+use crate::Graph::node::Node;
+use crate::Graph::edge::Edge;
+use crate::Graph::graph_type::graph_enum::GraphType;
+use crate::Graph::IgraphObject;
+
+const NS: &str = "http://graphml.graphdrawing.org/xmlns";
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let mut input = "";
-    let mut output = "";
-    let mut start = "";
-    let mut dest = "";
+    // All possible runtime parameters.
+    let mut input: Option<&str> = None;
+    let mut output: Option<&str> = None;
+    let mut start:Option<&str> = None;
+    let mut dest:Option<&str> = None;
 
+    // Read in passed parameters.
     for arg in args.iter() {
-        // GraphML-file
-        if arg.starts_with("-input=") {
-            input = &arg[7..];
+        // strip_prefix removes the given part at the beginning of a string slice.
+        if let Some(val) = arg.strip_prefix("-input=") {
+            input = Some(val); // GraphMl input path
+        } else if let Some(val) = arg.strip_prefix("-output=") {
+            output = Some(val); // Output file
+        } else if let Some(val) = arg.strip_prefix("-start=") {
+            start = Some(val); // Start node
+        } else if let Some(val) = arg.strip_prefix("-dest=") {
+            dest = Some(val); // Destination node
         }
-        else {
-            // Default value:
-            input = "Graph.xml";
-        }
-
-        // Output file (Coordinates for Plot)
-        if arg.starts_with("-output=") {
-            output = &arg[9..];
-        }
-        else {
-            // Default value:
-            output = "Graph.dat";
-        }
-
-        // Start node
-        if arg.starts_with("-start=") {
-            start = &arg[7..];
-        }
-        else {
-            // Default Value:
-            start = "A";
-        }
-
-        // Destination node
-        if arg.starts_with("-dest=") {
-            start = &arg[6..];
-        } // If no argument was passed then perform dijkstra algorithm for whole graph (otherwise until dest node was reached)
     }
+
+    //let input = input.unwrap_or("Graph.xml");
+    //let output = output.unwrap_or("Graph.dat");
+    //let start = start.unwrap_or("A");
+    //let dest = dest.unwrap_or(""); // no dest graph: dijkstra is performed for complete graph
     // TODO: std::process::exit(1) bedeutet, dass das Programm mit einem Fehler beendet wurde. Dieses also bei ungültigen Parametern etc. zurückgeben. Das Bash Skript fängt das auf und kann dann entscheiden ob weiter gemacht werden soll
 
+    // Give some fundamental information just to exclude common mistakes.
+    println!("Current dir: {}", std::env::current_dir().unwrap().display());
+    println!("Trying to read: '{}'", input.unwrap());
 
-    let mut nodes: Vec<Node> = Vec::new();
-    let mut edges: Vec<Edge> = Vec::new();
+    // Read in the file ...
+    let xml_str = fs::read_to_string(input.unwrap()).expect("Something went wrong reading the file");
+    // ... and parse it as XML.
+    let root: Element = xml_str.parse().expect("Failed to parse XML");
 
-    nodes.push(Node::new("A".to_string(), Vec::new(), 0));
-    nodes.push(Node::new("B".to_string(), Vec::new(), 1));
-    nodes.push(Node::new("C".to_string(), Vec::new(), 2));
-    nodes.push(Node::new("D".to_string(), Vec::new(), 3));
-    nodes.push(Node::new("E".to_string(), Vec::new(), 4));
-    nodes.push(Node::new("F".to_string(), Vec::new(), 5));
-    nodes.push(Node::new("G".to_string(), Vec::new(), 6));
-    nodes.push(Node::new("H".to_string(), Vec::new(), 7));
-    nodes.push(Node::new("I".to_string(), Vec::new(), 8));
-    nodes.push(Node::new("J".to_string(), Vec::new(), 9));
-    nodes.push(Node::new("K".to_string(), Vec::new(), 10));
+    // Containers to store the graph elements.
+    let mut nodes: Vec<Node> = Vec::new(); // stores all nodes
+    let mut edges: Vec<Edge> = Vec::new(); // stores all edges with references to nodes
 
+    let mut errors: Vec<String> = Vec::new(); // contains all error messages that occur
 
-    edges.push(Edge::new("e0".to_string(), 6, Undirected, &nodes[0], &nodes[6], Vec::new()));
-    edges.push(Edge::new("e1".to_string(), 1, Undirected, &nodes[7], &nodes[6], Vec::new()));
-    edges.push(Edge::new("e2".to_string(), 3, Undirected, &nodes[8], &nodes[0], Vec::new()));
-    edges.push(Edge::new("e3".to_string(), 5, Undirected, &nodes[9], &nodes[0], Vec::new()));
-    edges.push(Edge::new("e4".to_string(), 7, Undirected, &nodes[1], &nodes[7], Vec::new()));
-    edges.push(Edge::new("e5".to_string(), 2, Undirected, &nodes[1], &nodes[9], Vec::new()));
-    edges.push(Edge::new("e6".to_string(), 4, Undirected, &nodes[1], &nodes[2], Vec::new()));
-    edges.push(Edge::new("e7".to_string(), 3, Undirected, &nodes[2], &nodes[3], Vec::new()));
-    edges.push(Edge::new("e8".to_string(), 2, Undirected, &nodes[3], &nodes[10], Vec::new()));
-    edges.push(Edge::new("e9".to_string(), 2, Undirected, &nodes[3], &nodes[4], Vec::new()));
-    edges.push(Edge::new("e10".to_string(), 8, Undirected, &nodes[10], &nodes[5], Vec::new()));
-    edges.push(Edge::new("e11".to_string(), 6, Undirected, &nodes[4], &nodes[7], Vec::new()));
-    edges.push(Edge::new("e12".to_string(), 4, Undirected, &nodes[5], &nodes[6], Vec::new()));
-    edges.push(Edge::new("e13".to_string(), 3, Undirected, &nodes[3], &nodes[9], Vec::new()));
+    // Get the graph element (no root node!).
+    let graph: Option<&Element> = root.get_child("graph", NS);
+    if graph.is_none() {
+        errors.push("No graph element".to_string());
+        return; // at this point it makes no sense to go further.
+    }
 
-
-    let graph = Graph::Graph::new("graph1".to_string(), nodes.clone(), edges.clone(), Vec::new());
-
-    let result = Dijkstra::Dijkstra::run(&graph, &nodes[0]);
-
-    let opt = GraphPositioning::GraphOptimization::run(&graph, &nodes[0]);
-
-    GraphOutput::GraphOutput::write2File("Graph.dat".to_string(), &graph, &opt, Option::Some(&result));
-
-
-// (Everything works in this comment)
-/*    println!("{}", Constants::INTRO);
-    print!("   GraphML-filepath: ");
-
-    // force stream to flush
-    std::io::stdout().flush().unwrap();
- 
-    let mut filepath = String::new();
-
-    std::io::stdin()
-        .read_line(&mut filepath)
-        .expect("Error while reading...");
-*/
+    let graphId: Option<&str> = graph.unwrap().attr("id");
+    if graphId.is_none() {
+        errors.push(format!("Missing graph id"));
+        
+    }
     
+    let graphId: String = match graph.unwrap().attr("id") {
+        Some(id) => id.to_string(),
+        None => {
+            errors.push(format!("Missing graph id"));
+            // if this is the only error then continue. Not having an ID for the graph is not that critical. But a default value is used instead.
+            "unknown".to_string() // because of missing ; this is treated correctly as return value !
+        }
+    };
+
+    // Iterate over node elements.
+    for (index, node) in graph.unwrap().children().filter(|e: &&Element | e.name() == "node").enumerate() {
+        let id: Option<&str> = node.attr("id");
+
+        if id.is_none() {
+            errors.push(format!("Missing node id: {}", index));
+        } else {
+            // add element in node list.
+            nodes.push(Node::new(String::from(id.unwrap()), Vec::new(), index as u32));
+        }
+    }
+
+    // Iterate over edge elements.
+    for (index, edge) in graph.unwrap().children().filter(|e: &&Element | e.name() == "edge").enumerate() {
+        let mut invalid = false; // set to true if at least one invalid parameter was found/read.
+
+        // id of the edge
+        let id: Option<&str> = edge.attr("id");
+        if id.is_none() {
+            errors.push(format!("Missing edge id: {}", index));
+            invalid = true;
+        };
+
+        // type of the edge (directed / undirected)
+        let kind: Option<&str> = edge.attr("directed");
+        let status: Result<GraphType, String> = match kind {
+            Some(k) => k.parse(), // try to parse the string into GraphType
+            None => Err(format!("Invalid edge kind: {}", index)),
+        };
+        if status.is_err() {
+            errors.push(format!("Invalid edge directed: {}", index));
+            invalid = true;
+        }
+
+        // source node (already parsed into existing node id)
+        let source: Option<&Node>= edge
+            .attr("source")
+            .and_then(|source_id| nodes.iter().find(|n: &&Node |n.get_id() == source_id));
+        if source.is_none() {
+            errors.push(format!("Missing/invalid source id: {}", index));
+            invalid = true;
+        }
+
+        // target node (already parsed into existing node id)
+        let target: Option<&Node> = edge
+            .attr("target")
+            .and_then(|target_id| nodes.iter().find(|n: &&Node |n.get_id() == target_id));
+        if target.is_none() {
+            errors.push(format!("Missing/invalid target id: {}", index));
+            invalid = true;
+        }
+
+        let weight: Option<u32> = edge
+            .attr("weight")
+            .and_then(|s| s.parse().ok());
+        if weight.is_none() {
+            errors.push(format!("Missing/invalid weight id: {}", index));
+            invalid = true;
+        }
+
+        if invalid {
+            continue;
+        }
+
+        let id: String = id.unwrap().to_string();
+        let source: &Node = source.unwrap();
+        let target: &Node = target.unwrap();
+        let weight: u32 = weight.unwrap();
+        let status: GraphType = status.unwrap();
+
+        edges.push(Edge::new(id, weight, status, source, target, Vec::new()));
+    }
+
+    // Print out all gathered error messages:
+    println!("Errors: {}", errors.join("\n")); // join() connects all elements in the vector to one single string seperated through new lines
+
+    let start: Option<&Node> = nodes.iter().find(|n: &&Node |n.get_id() == start.unwrap());
+    let dest: Option<&Node> = nodes.iter().find(|n: &&Node |n.get_id() == dest.unwrap());
+
+    if start.is_none() {
+        errors.push(format!("Missing start node"));
+        return;
+    }
 
 
+    let graph = Graph::Graph::new(String::from(graphId), nodes.clone(), edges.clone(), Vec::new());
 
+    let result = Dijkstra::Dijkstra::run(&graph, start.unwrap());
 
-    //println!("{}", filepath);
+    let opt = GraphPositioning::GraphOptimization::run(&graph, start.unwrap());
+
+    GraphOutput::GraphOutput::write2File(output.unwrap().to_string(), &graph, &opt, Some(&result));
+
+    println!("Graph success!");
+
 }

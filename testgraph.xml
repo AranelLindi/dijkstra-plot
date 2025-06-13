@@ -3,7 +3,6 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns
      http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
-    <!-- Definitions of key elements -->
     <key id="k0" for="all" attr.name="key_all" attr.type="string">
         <default>Hello World</default>
     </key>
@@ -11,9 +10,7 @@
         <default>green</default>
     </key>
     <graph id="G" edgedefault="undirected">
-        <!-- First node definitions then edges -->
         <node id="A">
-            <!-- If key value want to be overwritten, new value must be placed here -->
             <data key="k0">Nothing</data>
         </node>
         <node id="B"/>
