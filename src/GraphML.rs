@@ -90,7 +90,7 @@ impl<'a> GraphML<'a> {
                 };
 
                 // Add key to vector:
-                keys_map.push((Key{id, attrname, attrtype, value}, attrfor));
+                keys_map.push((Key{id, attrname, attrtype, default: value }, attrfor));
             }
 
             // Iterate through all nodes:
@@ -123,7 +123,7 @@ impl<'a> GraphML<'a> {
                     for (id, value) in datas.iter() {
                         if *id == key.id {
                             // New value was found!
-                            key_cpy.value = value.clone();
+                            key_cpy.default = value.clone();
                             break; // because key id must be unique through whole document, search for other elements is trivial
                         }
                     }

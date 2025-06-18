@@ -64,7 +64,7 @@ impl<'a> Graph<'a> {
         // find out if key already exists
         if let Some(index) = keys.iter().position(|x| x.id == key.id) {
             // element exists so update value
-            keys[index].value = key.value;
+            keys[index].default = key.default;
         } else {
             keys.push(key);
         }

@@ -3,6 +3,7 @@ mod Dijkstra;
 mod GraphML;
 mod GraphOutput;
 mod GraphPositioning;
+mod KeyCollection;
 
 // Standard library.
 use std::io::Write; // used for command line output
@@ -15,9 +16,124 @@ use minidom::Element; // xml parser
 use crate::Graph::node::Node;
 use crate::Graph::edge::Edge;
 use crate::Graph::graph_type::graph_enum::GraphType;
-use crate::Graph::IgraphObject;
+use crate::Graph::{IgraphObject, Key};
 
 const NS: &str = "http://graphml.graphdrawing.org/xmlns";
+
+// Macro to easily collect error messages in a vector.
+/* Explanation:
+ * :expr - any expression (e.g. edge.attr("id")
+ * :literal - string or number (e.g. "id")
+ * :ident - name of a variable (e.g. invalid) (is printed then exactly in the code so the name must be written identically !
+ */
+macro_rules! get_attr {
+    ($attr:expr, $name:literal, $index:expr, $errors:expr, $invalid:ident) => {
+        match $attr {
+            Some(v) => v,
+            None => {
+                $errors.push(format!("Err: {} ({})"), $name, $index);
+                $invalid = true; // is inserted in the code as it stands here !
+                "" // valid &'static str is returned (trick!)
+            }
+        }
+    };
+}
+
+// Helper functions
+fn findNode<'a>(nodes: &'a [Node], id: &str) -> Option<&'a Node> {
+    nodes.iter().find(|node| node.get_id() == id)
+}
+
+
+// Parsing functions
+fn parseKey() -> Option<Key> {
+    None // TODO: Has to be implemented yet! See KeyCollection.rs !
+    /*
+        use minidom::Element;
+    
+    // Angenommen, das hier ist dein Wurzel-Element:
+    let root: Element = parse_graphml()?;
+    
+    // Sammle alle <key>-Elemente
+    let keys: Vec<Element> = root
+        .children()
+        .filter(|e| e.name() == "key")
+        .cloned()
+        .collect();
+    
+    // Jetzt je nach Scope aufrufen
+    let node_keys = collect_keys_for::<NodeScope>(&keys);
+    let edge_keys = collect_keys_for::<EdgeScope>(&keys);
+    let graph_keys = collect_keys_for::<GraphScope>(&keys);
+
+     */
+}
+
+fn parseNode(node: &Element, index: usize, errors: &mut Vec<String>) -> Option<Node> {
+    // Read and convert attribute once
+    let id_raw: Option<&str> = node.attr("id");
+    
+    if id_raw.is_none() {
+        errors.push(format!("Missing or invalid id for node at index {}", index));
+        None
+    } else {
+        Some(Node::new(id_raw.unwrap().to_string(), Vec::new(), index as u32))
+    }
+}
+
+fn parseEdge<'a>(edge: &Element, nodes: &'a [Node], index: usize, errors: &mut Vec<String>) -> Option<Edge<'a>> {
+    // Read and convert attributes once
+    let id_raw = edge.attr("id");
+    let kind_raw = edge.attr("directed");
+    let source_raw = edge.attr("source");
+    let target_raw = edge.attr("target");
+    let weight_raw = edge.attr("weight");
+
+    // Extract parsed values
+    let kind = kind_raw.and_then(|k| k.parse::<GraphType>().ok());
+    let source = source_raw.and_then(|k| findNode(nodes, k));
+    let target = target_raw.and_then(|k| findNode(nodes, k));
+    let weight = weight_raw.and_then(|w| w.parse::<u32>().ok());
+
+    let mut has_error = false;
+
+    // Use id for context, or fallback to index if missing
+    let id_for_error = id_raw.unwrap_or("<missing>");
+
+    if id_raw.is_none() {
+        errors.push(format!("Missing id for edge at index {}", index));
+        has_error = true;
+    }
+    if kind.is_none() {
+        errors.push(format!("Invalid or missing 'directed' attribute in edge {}", id_for_error));
+        has_error = true;
+    }
+    if source.is_none() {
+        errors.push(format!("Invalid or missing 'source' node in edge {}", id_for_error));
+        has_error = true;
+    }
+    if target.is_none() {
+        errors.push(format!("Invalid or missing 'target' node in edge {}", id_for_error));
+        has_error = true;
+    }
+    if weight.is_none() {
+        errors.push(format!("Invalid or missing 'weight' value in edge {}", id_for_error));
+        has_error = true;
+    }
+
+    if has_error {
+        None
+    } else {
+        Some(Edge::new(
+            id_raw.unwrap().to_string(),
+            weight.unwrap(),
+            kind.unwrap(),
+            source.unwrap(),
+            target.unwrap(),
+            Vec::new(),
+        ))
+    }
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -63,8 +179,12 @@ fn main() {
 
     let mut errors: Vec<String> = Vec::new(); // contains all error messages that occur
 
+    let mut invalid = false;
+    
     // Get the graph element (no root node!).
     let graph: Option<&Element> = root.get_child("graph", NS);
+    let graph = get_attr!(graph, "graph", 0, errors, invalid);
+    
     if graph.is_none() {
         errors.push("No graph element".to_string());
         return; // at this point it makes no sense to go further.
@@ -87,76 +207,11 @@ fn main() {
 
     // Iterate over node elements.
     for (index, node) in graph.unwrap().children().filter(|e: &&Element | e.name() == "node").enumerate() {
-        let id: Option<&str> = node.attr("id");
 
-        if id.is_none() {
-            errors.push(format!("Missing node id: {}", index));
-        } else {
-            // add element in node list.
-            nodes.push(Node::new(String::from(id.unwrap()), Vec::new(), index as u32));
-        }
     }
 
-    // Iterate over edge elements.
-    for (index, edge) in graph.unwrap().children().filter(|e: &&Element | e.name() == "edge").enumerate() {
-        let mut invalid = false; // set to true if at least one invalid parameter was found/read.
+    for (index, edge) in graph.unwrap().children().filter()
 
-        // id of the edge
-        let id: Option<&str> = edge.attr("id");
-        if id.is_none() {
-            errors.push(format!("Missing edge id: {}", index));
-            invalid = true;
-        };
-
-        // type of the edge (directed / undirected)
-        let kind: Option<&str> = edge.attr("directed");
-        let status: Result<GraphType, String> = match kind {
-            Some(k) => k.parse(), // try to parse the string into GraphType
-            None => Err(format!("Invalid edge kind: {}", index)),
-        };
-        if status.is_err() {
-            errors.push(format!("Invalid edge directed: {}", index));
-            invalid = true;
-        }
-
-        // source node (already parsed into existing node id)
-        let source: Option<&Node>= edge
-            .attr("source")
-            .and_then(|source_id| nodes.iter().find(|n: &&Node |n.get_id() == source_id));
-        if source.is_none() {
-            errors.push(format!("Missing/invalid source id: {}", index));
-            invalid = true;
-        }
-
-        // target node (already parsed into existing node id)
-        let target: Option<&Node> = edge
-            .attr("target")
-            .and_then(|target_id| nodes.iter().find(|n: &&Node |n.get_id() == target_id));
-        if target.is_none() {
-            errors.push(format!("Missing/invalid target id: {}", index));
-            invalid = true;
-        }
-
-        let weight: Option<u32> = edge
-            .attr("weight")
-            .and_then(|s| s.parse().ok());
-        if weight.is_none() {
-            errors.push(format!("Missing/invalid weight id: {}", index));
-            invalid = true;
-        }
-
-        if invalid {
-            continue;
-        }
-
-        let id: String = id.unwrap().to_string();
-        let source: &Node = source.unwrap();
-        let target: &Node = target.unwrap();
-        let weight: u32 = weight.unwrap();
-        let status: GraphType = status.unwrap();
-
-        edges.push(Edge::new(id, weight, status, source, target, Vec::new()));
-    }
 
     // Print out all gathered error messages:
     println!("Errors: {}", errors.join("\n")); // join() connects all elements in the vector to one single string seperated through new lines
