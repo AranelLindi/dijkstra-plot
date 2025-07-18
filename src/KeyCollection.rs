@@ -3,13 +3,14 @@ use crate::Graph::Key;
 use minidom::Element;
 use crate::Graph::key_type::key_enum::KeyType;
 
-trait KeyScope {
+pub trait KeyScope {
     const SCOPE: &'static str;
 }
 
-struct NodeScope;
-struct EdgeScope;
-struct GraphScope;
+pub struct NodeScope;
+pub struct EdgeScope;
+pub struct GraphScope;
+pub struct AllScope;
 
 impl KeyScope for NodeScope {
     const SCOPE: &'static str = "node";
@@ -21,9 +22,19 @@ impl KeyScope for GraphScope {
     const SCOPE: &'static str = "graph";
 }
 
-fn collect_keys_for<T: KeyScope>(keys: &[Element]) -> Vec<Key> {
+impl KeyScope for AllScope {
+    const SCOPE: &'static str = "all";
+}
+
+pub fn collect_keys_for<T: KeyScope>(keys: &[Element]) -> Vec<Key> {
     keys.iter()
-        .filter(|key| key.attr("for") == Some(T::SCOPE))
+        .filter(|key| {
+            key.name() == "key"
+                && key
+                .attr("for")
+                .map(|for_val| for_val.to_lowercase() == T::SCOPE)
+                .unwrap_or(false)
+        })
         .filter_map(|key| {
             // is is a must
             let id = key.attr("id")?;

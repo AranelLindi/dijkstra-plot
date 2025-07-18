@@ -17,6 +17,8 @@ use crate::Graph::node::Node;
 use crate::Graph::edge::Edge;
 use crate::Graph::graph_type::graph_enum::GraphType;
 use crate::Graph::{IgraphObject, Key};
+//use crate::GraphML::key_for::KeyFor::Node;
+use crate::KeyCollection::{collect_keys_for, AllScope, EdgeScope, NodeScope};
 
 const NS: &str = "http://graphml.graphdrawing.org/xmlns";
 
@@ -24,20 +26,21 @@ const NS: &str = "http://graphml.graphdrawing.org/xmlns";
 /* Explanation:
  * :expr - any expression (e.g. edge.attr("id")
  * :literal - string or number (e.g. "id")
- * :ident - name of a variable (e.g. invalid) (is printed then exactly in the code so the name must be written identically !
+ * :ident - identifier (not a string or an expression but a variable like bool)
  */
 macro_rules! get_attr {
-    ($attr:expr, $name:literal, $index:expr, $errors:expr, $invalid:ident) => {
-        match $attr {
-            Some(v) => v,
-            None => {
-                $errors.push(format!("Err: {} ({})"), $name, $index);
-                $invalid = true; // is inserted in the code as it stands here !
-                "" // valid &'static str is returned (trick!)
-            }
+    ($attr:expr, $errtype:literal, $name:literal, $index:expr, $description:literal, $errors:expr, $invalid:ident) => {{
+        if $attr.is_none() {
+            $errors.push(format!(
+                "{}: {} ({}): {}",
+                $errtype, $name, $index, $description
+            ));
+            $invalid = true;
         }
-    };
+        "" // dummy string return value so it can be used in expression context
+    }};
 }
+
 
 // Helper functions
 fn findNode<'a>(nodes: &'a [Node], id: &str) -> Option<&'a Node> {
@@ -69,7 +72,27 @@ fn parseKey() -> Option<Key> {
      */
 }
 
-fn parseNode(node: &Element, index: usize, errors: &mut Vec<String>) -> Option<Node> {
+fn assign_key_for_node(graph_keys: &[Key], node_keys: &[Key]) -> Vec<Key> {
+    let mut keys = Vec::new();
+    keys.extend_from_slice(graph_keys);
+    keys.extend_from_slice(node_keys);
+    keys
+}
+
+fn assign_key_for_edge(graph_keys: &[Key], edge_keys: &[Key]) -> Vec<Key> {
+    let mut keys = Vec::new();
+    keys.extend_from_slice(edge_keys);
+    keys.extend_from_slice(graph_keys);
+    keys
+}
+
+fn assign_key_for_graph(graph_keys: &[Key]) -> Vec<Key> {
+    let mut keys = Vec::new();
+    keys.extend_from_slice(graph_keys);
+    keys
+}
+
+fn parseNode(node: &Element, index: usize, errors: &mut Vec<String>, graph_keys: &[Key], node_keys: &[Key]) -> Option<Node> {
     // Read and convert attribute once
     let id_raw: Option<&str> = node.attr("id");
     
@@ -77,11 +100,15 @@ fn parseNode(node: &Element, index: usize, errors: &mut Vec<String>) -> Option<N
         errors.push(format!("Missing or invalid id for node at index {}", index));
         None
     } else {
-        Some(Node::new(id_raw.unwrap().to_string(), Vec::new(), index as u32))
+        Some(Node::new(id_raw.unwrap().to_string(), assign_key_for_node(graph_keys, node_keys), index as u32))
     }
+
+    // TODO: Here the get_attr! Macro must be implemented to make visible if an information is missing or invalid !
 }
 
-fn parseEdge<'a>(edge: &Element, nodes: &'a [Node], index: usize, errors: &mut Vec<String>) -> Option<Edge<'a>> {
+fn parseEdge<'a>(edge: &Element, nodes: &'a [Node], index: usize, errors: &mut Vec<String>, graph_keys: &[Key], edge_keys: &[Key]) -> Option<Edge<'a>> {
+    // TODO: parseEdge does not yet support the read-in of the default nodes for keys within the edge nodes.
+
     // Read and convert attributes once
     let id_raw = edge.attr("id");
     let kind_raw = edge.attr("directed");
@@ -130,7 +157,7 @@ fn parseEdge<'a>(edge: &Element, nodes: &'a [Node], index: usize, errors: &mut V
             kind.unwrap(),
             source.unwrap(),
             target.unwrap(),
-            Vec::new(),
+            assign_key_for_edge(graph_keys, edge_keys),
         ))
     }
 }
@@ -179,40 +206,64 @@ fn main() {
 
     let mut errors: Vec<String> = Vec::new(); // contains all error messages that occur
 
-    let mut invalid = false;
+    let mut invalid = false; // indicates if a parsing error occurred
     
     // Get the graph element (no root node!).
     let graph: Option<&Element> = root.get_child("graph", NS);
-    let graph = get_attr!(graph, "graph", 0, errors, invalid);
     
     if graph.is_none() {
-        errors.push("No graph element".to_string());
-        return; // at this point it makes no sense to go further.
+        //errors.push("No graph element".to_string());
+        get_attr!(graph, "Err", "graph", 0, "no graph element", errors, invalid);
+        return; // at this point it makes no sense to go further. // TODO: Think about a solution to make this error also visible to the user even if the program stops here !
     }
 
-    let graphId: Option<&str> = graph.unwrap().attr("id");
-    if graphId.is_none() {
-        errors.push(format!("Missing graph id"));
-        
-    }
-    
-    let graphId: String = match graph.unwrap().attr("id") {
-        Some(id) => id.to_string(),
-        None => {
-            errors.push(format!("Missing graph id"));
-            // if this is the only error then continue. Not having an ID for the graph is not that critical. But a default value is used instead.
-            "unknown".to_string() // because of missing ; this is treated correctly as return value !
-        }
-    };
+    let graph = graph.unwrap(); // At this point a graph element exists !
+    let attr = graph.attr("id");
+    get_attr!(attr, "Warn", "graphId", 0, "Missing graph id", errors, invalid);
+    let graphId = attr.unwrap_or("unknown").to_string();
+
 
     // Iterate over node elements.
-    for (index, node) in graph.unwrap().children().filter(|e: &&Element | e.name() == "node").enumerate() {
+    /*for (index, node) in graph.children().filter(|e: &&Element | e.name().to_lowercase() == "node").enumerate() {
+        match parseNode(node, index, &mut errors) {
+            Some(node) => {
+                nodes.push(node);
+            }
+            None => {
+                continue
+            }
+        }
+    }*/
 
+    let key_elements: Vec<Element> = root.children()
+        .filter(|e| e.name() == "key" && e.ns() == NS)
+        .cloned()
+        .collect();
+    let keysForEdges = collect_keys_for::<EdgeScope>(&key_elements);
+    let keysForNodes = collect_keys_for::<NodeScope>(&key_elements);
+    let keysForAll = collect_keys_for::<AllScope>(&key_elements);
+
+    for (_, node) in graph.children()
+        .filter(|e: &&Element | e.name().eq_ignore_ascii_case("node")) // 1. filters only elements with name equal to "node" and returns bool [(Auto-Dereferencing! e.name() means: (**e).names())]
+        .enumerate() // 2. enumerates all filtered elements and provides (index: usize, node: &Element)
+        .filter_map(|(index , node)| {
+            parseNode(node, index, &mut errors, &keysForAll, &keysForNodes) // 4. after parseNode() and map() are executed on every piece filter_map removes all Nones and returns the Some values, resulting the (_, node: Node) iterator, used in the for-loop
+                .map(|n| (index, n)) // 3. map takes the result from parseNode (Option<Node>) and turns it into Option<(index, Node)> receives Option<Node> from filter_map and converts it to Option<(index, Node)>, needed for for-loop structure
+        }) // map returns Option<Node> and filter_map returns an iterator consisting of Node thats why node in the for-loop is of type Node and not &Element !
+    {
+        nodes.push(node); // 5. node is of type Node here (not Option!) because filter_map unwraps the Some(...)
     }
 
-    for (index, edge) in graph.unwrap().children().filter()
+    //for (index, edge) in graph.unwrap().children().filter()
 
+    for (_, edge) in graph.children()
+        .filter(|e: &&Element | e.name().eq_ignore_ascii_case("edge"))
+        .enumerate()
+        .filter_map(|(index, edge)| parseEdge(edge, &nodes, index, &mut errors, &keysForAll, &keysForEdges).map(|e| (index, e))) {
+        edges.push(edge)
+    }
 
+    
     // Print out all gathered error messages:
     println!("Errors: {}", errors.join("\n")); // join() connects all elements in the vector to one single string seperated through new lines
 
